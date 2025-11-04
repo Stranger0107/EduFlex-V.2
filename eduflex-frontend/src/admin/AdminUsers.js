@@ -2,24 +2,20 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
 import { toast } from "react-toastify";
-import api from "../config/api"; // Import api for delete functionality
+import api from "../config/api"; 
 
 export default function AdminUsers() {
-  //
   const { fetchAllUsersAdmin, createUser } = useApp();
 
   const [users, setUsers] = useState([]);
   const [roleFilter, setRoleFilter] = useState("all");
   const [loading, setLoading] = useState(true);
-
-  // For create user modal
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "student" });
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      //
       const fetchedUsers = await fetchAllUsersAdmin();
       setUsers(fetchedUsers || []);
     } catch (err) {
@@ -33,30 +29,27 @@ export default function AdminUsers() {
     fetchUsers();
   }, [fetchUsers]);
 
-  // Implement user delete
   const handleDelete = async (userId, userName) => {
     if (window.confirm(`Are you sure you want to delete "${userName}"? This cannot be undone.`)) {
       try {
-        //
-        await api.delete(`/admin/users/${userId}`);
+        await api.delete(`/admin/users/${userId}`); //
         toast.success("User deleted successfully");
-        fetchUsers(); // Re-fetch the user list
+        fetchUsers(); 
       } catch (err) {
         toast.error("Failed to delete user.");
       }
     }
   };
 
-  // Filtering
   const filteredUsers = users.filter(u =>
     roleFilter === "all" ? true : u.role === roleFilter
   );
 
-  // Creating
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
+
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.password) {
@@ -64,22 +57,19 @@ export default function AdminUsers() {
       return;
     }
     try {
-      //
       const newUser = await createUser(form);
-      if (newUser) { // Check if user creation was successful
+      if (newUser) { 
         setForm({ name: "", email: "", password: "", role: "student" });
         setShowModal(false);
         toast.success("User created!");
-        fetchUsers(); // Refresh list
+        fetchUsers(); 
       }
     } catch (err) {
-      // Error toast is handled by interceptor, but log for debugging
       console.error("Failed to create user:", err);
     }
   };
 
   return (
-    // Removed pl-24, as layout component should handle this
     <div className="p-8 min-h-screen"> 
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">User Management</h1>
@@ -100,8 +90,8 @@ export default function AdminUsers() {
         <div className="flex items-center justify-center h-80 text-lg">Loading users...</div>
       ) : (
         <table className="w-full bg-white rounded-xl shadow overflow-x-auto">
-          <thead>
-            <tr className="bg-gray-100">
+          <thead className="bg-gray-100">
+            <tr>
               <th className="px-4 py-2 text-left">Name</th>
               <th className="px-4 py-2 text-left">Email</th>
               <th className="px-4 py-2 text-left">Role</th>
@@ -115,7 +105,6 @@ export default function AdminUsers() {
                 <td className="px-4 py-2">{u.name}</td>
                 <td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2 capitalize">{u.role}</td>
-                {/* */}
                 <td className="px-4 py-2">{new Date(u.joinedAt).toLocaleDateString()}</td>
                 <td className="px-4 py-2">
                   <button
@@ -126,13 +115,13 @@ export default function AdminUsers() {
                   >
                     Delete
                   </button>
-                </td>
+             </td>
               </tr>
             ))}
             {filteredUsers.length === 0 && (
               <tr>
                 <td colSpan={5} className="text-gray-400 text-center py-6">No users found.</td>
-              </tr>
+             </tr>
             )}
           </tbody>
         </table>
@@ -159,17 +148,17 @@ export default function AdminUsers() {
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">Email</label>
               <input
-                type="email"
+                type="email"
                 name="email"
                 value={form.email}
                 onChange={handleFormChange}
                 required
                 className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+             />
             </div>
             <div className="mb-4">
               <label className="block text-sm font-medium mb-1">Password</label>
-              <input
+             <input
                 type="password"
                 name="password"
                 value={form.password}
@@ -179,7 +168,7 @@ export default function AdminUsers() {
               />
             </div>
             <div className="mb-6">
-              <label className="block text-sm font-medium mb-1">Role</label>
+            Do <label className="block text-sm font-medium mb-1">Role</label>
               <select
                 name="role"
                 value={form.role}
@@ -191,18 +180,18 @@ export default function AdminUsers() {
                 <option value="admin">Admin</option>
               </select>
             </div>
-            <div className="flex justify-end gap-3">
+         <div className="flex justify-end gap-3">
               <button
                 type="submit"
                 className="bg-indigo-600 text-white px-4 py-2 rounded font-medium hover:bg-indigo-700"
               >
                 Create
               </button>
-              <button
+             <button
                 type="button"
                 onClick={() => setShowModal(false)}
                 className="bg-gray-300 text-gray-700 px-4 py-2 rounded font-medium hover:bg-gray-400"
-             >
+              >
                 Cancel
               </button>
             </div>
