@@ -41,13 +41,16 @@ const createAssignment = async (req, res) => {
 
     // ✅ Handle uploaded file (optional)
     if (req.file) {
-      // Robust URL construction:
-      // 1. Get path relative to the backend root (e.g., 'uploads/assignments/courseId/file.pdf')
+      // 1. Get path relative to the backend root
+      // This finds the ACTUAL path where multer saved the file, regardless of folder
       const rootDir = path.join(__dirname, '..'); 
       const relativePath = path.relative(rootDir, req.file.path);
       
       // 2. Convert to URL format (force forward slashes for web compatibility)
+      // This fixes the issue if the file ended up in 'general' or if running on Windows
       assignmentData.attachmentUrl = '/' + relativePath.split(path.sep).join('/');
+      
+      console.log("📎 Attachment saved at:", assignmentData.attachmentUrl);
     }
 
     // ✅ Save assignment

@@ -546,29 +546,24 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const createAssignment = async (assignmentData, isMultipart = false, courseId) => {
-  try {
-    const headers = { Authorization: `Bearer ${token}` };
+  const createAssignment = async (assignmentData, isMultipart = false) => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      
+      // ✅ CRITICAL FIX: Delete Content-Type so browser sets multipart boundary
+      if (isMultipart || assignmentData instanceof FormData) {
+        delete headers['Content-Type'];
+      }
 
-    // allow FormData auto boundary
-    if (isMultipart || assignmentData instanceof FormData) {
-      delete headers["Content-Type"];
+      const { data } = await api.post("/assignments", assignmentData, { headers });
+      toast.success("Assignment created!");
+      return data;
+    } catch (error) {
+      console.error("API: createAssignment failed", error);
+      toast.error("Failed to create assignment.");
+      return null;
     }
-
-    const { data } = await api.post(
-      `/assignments?courseId=${courseId}`,   // ⭐ MUST SEND courseId
-      assignmentData,
-      { headers }
-    );
-
-    toast.success("Assignment created!");
-    return data;
-  } catch (error) {
-    console.error("API: createAssignment failed", error);
-    toast.error("Failed to create assignment.");
-    return null;
-  }
-};
+  };
 
 
   // =============================
