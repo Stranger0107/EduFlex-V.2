@@ -2,6 +2,8 @@ const User = require('../models/User');
 const Course = require('../models/Course');
 const Assignment = require('../models/Assignment');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const Notification = require('../models/Notification');
 
 // =========================================
 // 📚 Upload Study Material (File Upload)
@@ -97,14 +99,29 @@ exports.getCourseById = async (req, res) => {
 // ============================
 exports.createCourse = async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { title, description, enrollmentKey } = req.body;
     const newCourse = new Course({
       title,
       description,
       professor: req.user.id,
     });
+
+    if (enrollmentKey && typeof enrollmentKey === 'string' && enrollmentKey.trim() !== '') {
+      newCourse.enrollmentKeyHash = await bcrypt.hash(enrollmentKey, 10);
+    }
+
     const saved = await newCourse.save();
-    res.status(201).json(saved);
+
+    const populatedCourse = await Course.findById(saved._id)
+      .populate('professor', 'name email')
+      .populate('students', 'name email')
+      .select('title description professor students materials createdAt updatedAt enrollmentKeyHash');
+
+    const obj = populatedCourse.toObject();
+    obj.enrollmentRequired = !!obj.enrollmentKeyHash;
+    delete obj.enrollmentKeyHash;
+
+    res.status(201).json(obj);
   } catch (err) {
     console.error('Error creating course:', err);
     res.status(500).json({ error: 'Server error creating course' });
@@ -122,9 +139,32 @@ exports.updateCourse = async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    Object.assign(course, req.body);
+    const { title, description } = req.body;
+    if (title) course.title = title;
+    if (description) course.description = description;
+
+    // Handle enrollmentKey updates
+    if (Object.prototype.hasOwnProperty.call(req.body, 'enrollmentKey')) {
+      const newKey = req.body.enrollmentKey;
+      if (newKey && newKey.trim() !== '') {
+        course.enrollmentKeyHash = await bcrypt.hash(newKey, 10);
+      } else {
+        course.enrollmentKeyHash = '';
+      }
+    }
+
     const updated = await course.save();
-    res.json(updated);
+
+    const populatedCourse = await Course.findById(updated._id)
+      .populate('professor', 'name email')
+      .populate('students', 'name email')
+      .select('title description professor students materials createdAt updatedAt enrollmentKeyHash');
+
+    const obj = populatedCourse.toObject();
+    obj.enrollmentRequired = !!obj.enrollmentKeyHash;
+    delete obj.enrollmentKeyHash;
+
+    res.json(obj);
   } catch (err) {
     console.error('Error updating course:', err);
     res.status(500).json({ error: 'Server error updating course' });
@@ -191,6 +231,21 @@ exports.gradeAssignment = async (req, res) => {
     submission.grade = grade;
     submission.feedback = feedback;
     await assignment.save();
+
+    // Notify the student about the grade
+    try {
+      const notif = new Notification({
+        user: studentId,
+        title: `Assignment graded: ${assignment.title}`,
+        message: `Your submission for "${assignment.title}" has been graded: ${grade}`,
+        type: 'graded',
+        relatedId: String(assignment._id),
+        link: `/assignments`,
+      });
+      await notif.save();
+    } catch (notifErr) {
+      console.error('Failed to create grade notification:', notifErr);
+    }
 
     res.json({ message: 'Grade updated successfully' });
   } catch (err) {

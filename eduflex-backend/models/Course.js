@@ -37,6 +37,11 @@ const CourseSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    // Optional enrollment key (stored hashed)
+    enrollmentKeyHash: {
+      type: String,
+      default: '',
+    },
     // ✅ NEW FIELD: Study materials (professor uploads here)
     materials: [MaterialSchema],
   },

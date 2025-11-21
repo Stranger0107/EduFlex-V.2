@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Toast from "./components/Toast";
 import Sidebar from "./components/Sidebar";
 import MobileNav from "./components/MobileNav";
+import NotificationBell from "./components/NotificationBell";
 
 // Student pages
 import Dashboard from "./pages/Dashboard";
@@ -84,6 +85,12 @@ function AppWrapper() {
         }}
         className={(showStudentSidebar || showProfessorSidebar || showAdminSidebar) ? "md:pl-20" : ""}
       >
+        {/* Notification bell (top-right) */}
+        {user && user.role === "student" && (
+          <div className="fixed top-4 right-4 z-50">
+            <NotificationBell />
+          </div>
+        )}
         <Routes>
 
           {/* PUBLIC LOGIN */}

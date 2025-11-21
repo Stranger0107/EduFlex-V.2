@@ -23,6 +23,9 @@ app.use('/api/student', require('./routes/studentRoutes.js'));
 app.use('/api/courses', require('./routes/courses.js'));
 app.use('/api/assignments', require('./routes/assignments.js'));
 app.use('/api/quizzes', require('./routes/quizRoutes.js'));
+// Mount notification routes
+console.log('Mounting notification routes at /api/notification');
+app.use('/api/notification', require('./routes/notification.js'));
 
 // Test route
 app.get('/', (req, res) => {

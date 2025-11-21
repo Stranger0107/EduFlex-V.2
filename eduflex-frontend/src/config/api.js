@@ -3,6 +3,10 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// API_HOST is the server origin (without the '/api' prefix) and should be used
+// for serving static files like uploads. If REACT_APP_API_URL ends with '/api',
+// strip it to derive the host.
+const API_HOST = API_BASE_URL.replace(/\/api\/?$/i, '') || 'http://localhost:5000';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -44,4 +48,4 @@ api.interceptors.response.use(
 );
 
 export default api;
-export { API_BASE_URL };
+export { API_BASE_URL, API_HOST };

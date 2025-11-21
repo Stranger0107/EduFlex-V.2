@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useApp } from "../contexts/AppContext";
 import { toast } from "react-toastify";
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, API_HOST } from "../config/api";
 
 function Assignments() {
   const {
@@ -19,11 +19,21 @@ function Assignments() {
   const [editing, setEditing] = useState({});              // ⭐ NEW
   const [loadingState, setLoadingState] = useState({ page: true, submitting: {} });
 
+  // Helper: ensure file link goes to backend host if needed
+  const makeFileUrl = (filePath) => {
+    if (!filePath) return null;
+    if (filePath.startsWith("http://") || filePath.startsWith("https://")) return filePath;
+    if (filePath.startsWith(window.location.origin)) return filePath;
+    return filePath.startsWith('http') ? filePath : `${API_HOST}${filePath}`;
+  };
+
   useEffect(() => {
     const fetchMyAssignments = async () => {
       setLoadingState(s => ({ ...s, page: true }));
       try {
         const fetchedData = await fetchStudentAssignments();
+
+        // Normalize server shapes into a consistent UI-friendly shape
         const processed = (fetchedData || []).map(item => {
           let courseTitle = 'N/A';
           if (item.course) {
@@ -34,16 +44,103 @@ function Assignments() {
             }
           }
 
+          // Determine submission object (server may send different shapes)
+          // Prefer explicit filePath/submittedAt/isLate fields if present
+          let submissionObj = null;
+
+          // If backend returns /assignments/mine-style objects (single submission per item)
+          if (item.filePath || item.submittedAt || (typeof item.isLate !== 'undefined') || item.originalName) {
+            submissionObj = {
+              submission: item.submission ?? null,
+              filePath: item.filePath ?? null,
+              originalName: item.originalName ?? null,
+              submittedAt: item.submittedAt ?? null,
+              isLate: typeof item.isLate !== 'undefined' ? item.isLate : undefined,
+              grade: item.grade ?? null,
+              feedback: item.feedback ?? null,
+            };
+          }
+
+          // If backend returned an object with "submission" as object
+          if (!submissionObj && item.submission && typeof item.submission === 'object') {
+            submissionObj = {
+              submission: item.submission.submission ?? null,
+              filePath: item.submission.filePath ?? null,
+              originalName: item.submission.originalName ?? null,
+              submittedAt: item.submission.submittedAt ?? null,
+              isLate: typeof item.submission.isLate !== 'undefined' ? item.submission.isLate : undefined,
+              grade: item.submission.grade ?? null,
+              feedback: item.submission.feedback ?? null,
+            };
+          }
+
+          // If backend returned 'submissions' array (embedded) — pick the first / the one for this student
+          if (!submissionObj && Array.isArray(item.submissions) && item.submissions.length) {
+            // If you have multiple subs per assignment, this heuristic picks the first one.
+            // Backend ideally should give you only the student's submission in the student endpoint.
+            const s = item.submissions[0];
+            submissionObj = {
+              submission: s.submission ?? null,
+              filePath: s.filePath ?? null,
+              originalName: s.originalName ?? null,
+              submittedAt: s.submittedAt ?? null,
+              isLate: typeof s.isLate !== 'undefined' ? s.isLate : undefined,
+              grade: s.grade ?? null,
+              feedback: s.feedback ?? null,
+            };
+          }
+
+          // If nothing found, fallback to basic submission string (older shape)
+          if (!submissionObj && item.submission) {
+            submissionObj = {
+              submission: typeof item.submission === 'string' ? item.submission : null,
+              filePath: null,
+              originalName: null,
+              submittedAt: null,
+              isLate: undefined,
+              grade: null,
+              feedback: null,
+            };
+          }
+
+          // Compute final isLate: prefer server-provided boolean; if missing, compute from submittedAt vs due
+          const dueVal = item.dueDate || item.due || null;
+          const dueTime = dueVal ? new Date(dueVal).getTime() : null;
+          const submittedAtVal = submissionObj?.submittedAt ?? null;
+          let submittedAtIso = null;
+          let submittedAtMs = null;
+          if (submittedAtVal) {
+            const d = new Date(submittedAtVal);
+            if (!isNaN(d.getTime())) {
+              submittedAtIso = d.toISOString();
+              submittedAtMs = d.getTime();
+            }
+          }
+
+          const serverIsLate = typeof submissionObj?.isLate === 'boolean' ? submissionObj.isLate : undefined;
+          const computedIsLate = (typeof serverIsLate === 'boolean')
+            ? serverIsLate
+            : (submittedAtMs && dueTime ? (submittedAtMs > dueTime) : false);
+
           return {
             ...item,
             id: item.assignmentId || item._id,
             title: item.title || item.assignmentTitle,
-            status: item.status || 'pending',
+            status: item.status || (submissionObj ? 'submitted' : 'pending'),
             course: courseTitle,
-            due: item.dueDate || item.due || 'N/A',
+            due: dueVal || 'N/A',
             attachmentUrl: item.attachmentUrl || null,
+            // canonical submission fields for the UI
+            submission: submissionObj?.submission ?? null,
+            filePath: submissionObj?.filePath ?? null,
+            originalName: submissionObj?.originalName ?? null,
+            submittedAt: submittedAtIso ?? null,
+            isLate: !!computedIsLate,
+            grade: submissionObj?.grade ?? null,
+            feedback: submissionObj?.feedback ?? null,
           };
         });
+
         setAssignments(processed);
       } catch (error) {
         console.error("Assignment fetch error:", error);
@@ -85,7 +182,7 @@ function Assignments() {
   };
 
   // ================================
-  // ⭐ Submit (works for edit too)
+  // Submit (works for edit too) — uses server response to update UI
   // ================================
   const handleSubmit = async (assignmentId) => {
     const file = selectedFile[assignmentId];
@@ -110,16 +207,35 @@ function Assignments() {
         formData.append("text", text);
       }
 
-      await submitAssignment(assignmentId, formData);
+      // submitAssignment should return the saved submission object (server response)
+      const savedSubmission = await submitAssignment(assignmentId, formData);
 
-      // update UI
+      // normalize returned submittedAt to ISO if present
+      const returnedSubmittedAt = savedSubmission?.submittedAt ? new Date(savedSubmission.submittedAt).toISOString() : new Date().toISOString();
+      const returnedIsLate = typeof savedSubmission?.isLate === 'boolean'
+        ? savedSubmission.isLate
+        : // fallback compute (server should provide boolean, but be defensive)
+          (() => {
+            const dueVal = assignments.find(a => a.id === assignmentId)?.due || null;
+            const dueTime = dueVal ? new Date(dueVal).getTime() : null;
+            const subMs = returnedSubmittedAt ? new Date(returnedSubmittedAt).getTime() : null;
+            return dueTime && subMs ? subMs > dueTime : false;
+          })();
+
+      // update UI using server response (prefer canonical fields)
       setAssignments(prev =>
         prev.map(a =>
           a.id === assignmentId
             ? {
                 ...a,
-                status: "submitted",
-                submission: file ? file.name : text,
+                status: 'submitted',
+                submission: savedSubmission?.filePath || savedSubmission?.submission || savedSubmission?.originalName || (file ? file.name : text),
+                filePath: savedSubmission?.filePath || null,
+                originalName: savedSubmission?.originalName || null,
+                isLate: !!returnedIsLate,
+                submittedAt: returnedSubmittedAt,
+                grade: savedSubmission?.grade ?? a.grade,
+                feedback: savedSubmission?.feedback ?? a.feedback,
               }
             : a
         )
@@ -129,8 +245,10 @@ function Assignments() {
       setSelectedFile(prev => ({ ...prev, [assignmentId]: null }));
       setSubmissionText(prev => ({ ...prev, [assignmentId]: "" }));
 
+      toast.success('Submission saved.');
     } catch (error) {
       console.error("Submit error:", error);
+      toast.error(error.response?.data?.message || "Failed to submit assignment.");
     } finally {
       setLoadingState(s => ({
         ...s,
@@ -209,7 +327,7 @@ function Assignments() {
             {/* show professor attachment */}
             {a.attachmentUrl && (
               <a
-                href={a.attachmentUrl.startsWith("http") ? a.attachmentUrl : `${API_BASE_URL}${a.attachmentUrl}`}
+                href={a.attachmentUrl.startsWith("http") ? a.attachmentUrl : `${API_HOST}${a.attachmentUrl}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-green-600 underline"
@@ -221,7 +339,7 @@ function Assignments() {
             <p className="mt-3">{a.description}</p>
 
             {/* ========================= */}
-            {/* ⭐ EDIT OR SUBMIT AREA   */}
+            {/* EDIT OR SUBMIT AREA      */}
             {/* ========================= */}
 
             {/* PENDING → show submit UI */}
@@ -242,18 +360,30 @@ function Assignments() {
               <div className="mt-5 p-4 bg-blue-50 border rounded">
                 <h4 className="font-semibold mb-2">Your Submission:</h4>
 
-                {a.submission ? (
-                  a.submission.includes("/uploads/") ? (
-                    <a
-                      href={a.submission.startsWith("http") ? a.submission : `${API_BASE_URL}${a.submission}`}
-                      target="_blank"
-                      className="text-blue-600 underline"
-                    >
-                      View Submitted File
-                    </a>
+                {/* Show Late/On-time + timestamp */}
+                <div className="flex items-center gap-3 mb-2">
+                  {a.isLate ? (
+                    <span className="px-2 py-1 rounded-full text-sm bg-red-100 text-red-700 font-semibold">Late</span>
                   ) : (
-                    <p>{a.submission}</p>
-                  )
+                    <span className="px-2 py-1 rounded-full text-sm bg-green-100 text-green-700 font-semibold">On time</span>
+                  )}
+                  {a.submittedAt && (
+                    <div className="text-xs text-gray-500">Submitted: {new Date(a.submittedAt).toLocaleString()}</div>
+                  )}
+                </div>
+
+                {/* prefer filePath for download */}
+                {a.filePath ? (
+                  <a
+                    href={makeFileUrl(a.filePath)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-blue-600 underline"
+                  >
+                    View Submitted File
+                  </a>
+                ) : a.submission ? (
+                  <p>{a.submission}</p>
                 ) : (
                   <p className="italic text-gray-500">No submission found.</p>
                 )}
@@ -268,9 +398,7 @@ function Assignments() {
               </div>
             )}
 
-            {/* ========================= */}
-            {/* ⭐ EDIT MODE UI          */}
-            {/* ========================= */}
+            {/* EDIT MODE UI */}
             {editing[a.id] && (
               <EditBox
                 a={a}

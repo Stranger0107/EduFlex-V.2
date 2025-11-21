@@ -5,28 +5,40 @@ const Notification = require("../models/Notification");
 
 // Runs everyday at midnight
 cron.schedule("0 0 * * *", async () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  try {
+    const tomorrowStart = new Date();
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    tomorrowStart.setHours(0,0,0,0);
 
-  const assignments = await Assignment.find({
-    dueDate: {
-      $gte: new Date(tomorrow.setHours(0,0,0,0)),
-      $lte: new Date(tomorrow.setHours(23,59,59,999))
+    const tomorrowEnd = new Date(tomorrowStart);
+    tomorrowEnd.setHours(23,59,59,999);
+
+    const assignments = await Assignment.find({
+      dueDate: {
+        $gte: tomorrowStart,
+        $lte: tomorrowEnd
+      }
+    }).populate("course");
+
+    for (let asg of assignments) {
+      const course = await Course.findById(asg.course._id).populate("students");
+      if (!course || !course.students) continue;
+
+      for (const s of course.students) {
+        await Notification.create({
+          user: s._id,
+          title: `Assignment due tomorrow`,
+          message: `Reminder: Assignment "${asg.title}" for course "${course.title}" is due tomorrow.`,
+          type: "due_reminder",
+          relatedId: String(asg._id),
+          link: `/assignments/${asg._id}`,
+          read: false,
+        });
+      }
     }
-  }).populate("course");
 
-  for (let asg of assignments) {
-    const course = await Course.findById(asg.course._id).populate("students");
-
-    course.students.forEach(async (s) => {
-      await Notification.create({
-        user: s._id,
-        message: `Reminder: Assignment "${asg.title}" is due tomorrow.`,
-        type: "assignment-reminder",
-        link: `/assignments/${asg._id}`
-      });
-    });
+    console.log("📢 Assignment reminders sent");
+  } catch (err) {
+    console.error('Error sending assignment reminders:', err);
   }
-
-  console.log("📢 Assignment reminders sent");
 });

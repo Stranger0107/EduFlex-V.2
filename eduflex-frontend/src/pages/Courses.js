@@ -43,10 +43,11 @@ function Courses() {
     if (user) fetchCourses();
   }, [filter, user, getAllCourses, getMyStudentCourses]);
 
-  // ✅ Mark enrolled courses
+  // ✅ Mark enrolled courses and surface enrollment requirement flag
   const updatedCourses = courses.map((c) => ({
     ...c,
     enrolled: c.students?.includes(user?._id),
+    enrollmentRequired: !!c.enrollmentRequired,
   }));
 
   // ✅ Search & Filter
@@ -62,13 +63,18 @@ function Courses() {
     return match;
   });
 
- const handleEnrollment = async (courseId, isEnrolled, title) => {
+ const handleEnrollment = async (courseId, isEnrolled, title, enrollmentRequired) => {
   try {
     if (isEnrolled) {
       await unenrollFromCourse(courseId);
       toast.success(`Unenrolled from ${title}.`);
     } else {
-      await enrollInCourse(courseId);
+      let key = null;
+      if (enrollmentRequired) {
+        key = window.prompt(`This course requires an enrollment key. Enter key to enroll in ${title}:`);
+        if (key === null) return; // user cancelled
+      }
+      await enrollInCourse(courseId, key);
       toast.success(`Enrolled in ${title}!`);
     }
 
@@ -167,9 +173,9 @@ function Courses() {
               <p className="text-gray-700 mb-3">{course.description}</p>
 
               <div className="flex gap-2">
-                <button
+                  <button
                   onClick={() =>
-                    handleEnrollment(course._id, course.enrolled, course.title)
+                    handleEnrollment(course._id, course.enrolled, course.title, course.enrollmentRequired)
                   }
                   className={`flex-1 px-3 py-2 rounded font-semibold ${
                     course.enrolled

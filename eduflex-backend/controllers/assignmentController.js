@@ -2,6 +2,8 @@ const Assignment = require('../models/Assignment');
 const Course = require('../models/Course');
 const path = require('path'); // For file system operations
 const fs = require('fs'); // For file system operations
+const User = require('../models/User'); // if you want to populate student info
+const Notification = require('../models/Notification');
 
 // ======================================================
 // 🧾 Create a new assignment (with optional file upload)
@@ -55,6 +57,24 @@ const createAssignment = async (req, res) => {
     // ✅ Save assignment
     const assignment = new Assignment(assignmentData);
     await assignment.save();
+
+    // ✅ Create notifications for enrolled students
+    try {
+      if (course.students && course.students.length > 0) {
+        const notifs = course.students.map((studentId) => ({
+          user: studentId,
+          title: `New assignment in ${course.title}`,
+          message: `A new assignment "${assignment.title}" was posted. Due: ${new Date(assignment.dueDate).toLocaleString()}`,
+          type: 'assignment_added',
+          relatedId: String(assignment._id),
+          link: `/assignments`,
+        }));
+
+        await Notification.insertMany(notifs);
+      }
+    } catch (notifErr) {
+      console.error('Failed to create assignment notifications:', notifErr);
+    }
 
     res.status(201).json({
       message: 'Assignment created successfully.',
@@ -176,10 +196,186 @@ const deleteAssignment = async (req, res) => {
   }
 };
 
+// ======================================================
+// POST /api/assignments/:id/submit
+// Student submits text or a file
+// Access: Private (student)
+// ======================================================
+const submitAssignment = async (req, res) => {
+  try {
+    const assignmentId = req.params.id;
+    const userId = req.user.id;
+    const assignment = await Assignment.findById(assignmentId);
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found.' });
+
+    const submittedAt = new Date();
+
+    // Robust due date parsing
+    const dueTime = assignment.dueDate ? new Date(assignment.dueDate).getTime() : null;
+    const isLate = dueTime ? (submittedAt.getTime() > dueTime) : false;
+
+    let filePath = '';
+    let originalName = '';
+    const submissionText = req.body.text || req.body.submission || '';
+
+    if (req.file) {
+      const rootDir = path.join(__dirname, '..');
+      const relativePath = path.relative(rootDir, req.file.path);
+      filePath = '/' + relativePath.split(path.sep).join('/');
+      originalName = req.file.originalname || '';
+    }
+
+    const existingIndex = assignment.submissions.findIndex(s => String(s.student) === String(userId));
+
+    const submissionObj = {
+      student: userId,
+      submission: submissionText || (filePath ? originalName : ''),
+      filePath,
+      originalName,
+      submittedAt,
+      isLate,
+    };
+
+    if (existingIndex > -1) {
+      assignment.submissions[existingIndex] = {
+        ...assignment.submissions[existingIndex]._doc,
+        ...submissionObj
+      };
+    } else {
+      assignment.submissions.push(submissionObj);
+    }
+
+    await assignment.save();
+
+    const savedSubmission = existingIndex > -1 ? assignment.submissions[existingIndex] : assignment.submissions[assignment.submissions.length - 1];
+
+    // normalize submittedAt to ISO and return the submission object directly
+    const savedPlain = {
+      submission: savedSubmission.submission,
+      filePath: savedSubmission.filePath,
+      originalName: savedSubmission.originalName,
+      submittedAt: savedSubmission.submittedAt
+        ? new Date(savedSubmission.submittedAt).toISOString()
+        : new Date().toISOString(),
+      isLate: !!savedSubmission.isLate,
+      grade: savedSubmission.grade ?? null,
+      feedback: savedSubmission.feedback ?? null,
+      student: savedSubmission.student
+    };
+
+    // Return the submission object directly (not wrapped) — frontend expects this shape
+    return res.status(existingIndex > -1 ? 200 : 201).json(savedPlain);
+  } catch (err) {
+    console.error('submitAssignment error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ======================================================
+// GET /api/assignments/:id/submissions
+// Professor/Admin view: list all submissions for an assignment
+// Access: Private (professor who owns course or admin)
+// ======================================================
+const getSubmissionsForAssignment = async (req, res) => {
+  try {
+    const assignmentId = req.params.id;
+    const assignment = await Assignment.findById(assignmentId).lean();
+    if (!assignment) return res.status(404).json({ message: 'Assignment not found.' });
+
+    const course = await Course.findById(assignment.course);
+    const isProfessorOwner = course && String(course.professor) === String(req.user.id);
+    const isAdmin = req.user.role === 'admin';
+    if (!isProfessorOwner && !isAdmin) return res.status(403).json({ message: 'Not authorized.' });
+
+    const dueTime = assignment.dueDate ? new Date(assignment.dueDate).getTime() : null;
+
+    // populate minimal student info and ensure isLate computed
+    const populated = await Promise.all((assignment.submissions || []).map(async (s) => {
+      let studentObj = s.student;
+      if (s.student) {
+        try {
+          const u = await User.findById(s.student).select('name email').lean();
+          if (u) studentObj = u;
+        } catch {}
+      }
+      const computedIsLate = (typeof s.isLate === 'boolean')
+        ? s.isLate
+        : (s.submittedAt && dueTime ? (new Date(s.submittedAt).getTime() > dueTime) : false);
+
+      return {
+        student: studentObj,
+        submission: s.submission ?? null,
+        filePath: s.filePath ?? null,
+        originalName: s.originalName ?? null,
+        submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
+        isLate: !!computedIsLate,
+        grade: s.grade ?? null,
+        feedback: s.feedback ?? null,
+      };
+    }));
+
+    return res.json(populated);
+  } catch (err) {
+    console.error('getSubmissionsForAssignment error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// ======================================================
+// GET /api/assignments/mine
+// Student: get all submissions made by current student
+// Access: Private (student)
+// ======================================================
+const getMySubmissions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const assignments = await Assignment.find({ 'submissions.student': userId })
+      .select('title course dueDate submissions')
+      .lean();
+
+    const result = [];
+    for (const a of assignments) {
+      const dueTime = a.dueDate ? new Date(a.dueDate).getTime() : null;
+      for (const s of (a.submissions || [])) {
+        if (String(s.student) === String(userId)) {
+          const computedIsLate = (typeof s.isLate === 'boolean')
+            ? s.isLate
+            : (s.submittedAt && dueTime ? (new Date(s.submittedAt).getTime() > dueTime) : false);
+
+          result.push({
+            assignmentId: a._id,
+            assignmentTitle: a.title,
+            // also include `title` for frontend convenience
+            title: a.title,
+            course: a.course,
+            dueDate: a.dueDate,
+            submission: s.submission ?? null,
+            filePath: s.filePath ?? null,
+            originalName: s.originalName ?? null,
+            submittedAt: s.submittedAt ? new Date(s.submittedAt).toISOString() : null,
+            isLate: !!computedIsLate,
+            grade: s.grade ?? null,
+            feedback: s.feedback ?? null,
+          });
+        }
+      }
+    }
+
+    // NOTE: return the array directly (frontend expects an array)
+    return res.json(result);
+  } catch (err) {
+    console.error('getMySubmissions error', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // --- Export all functions ---
 module.exports = {
   createAssignment,
   getAssignmentsForCourse,
-  getAssignmentById, // Added this
-  deleteAssignment, // Added this
+  getAssignmentById,
+  deleteAssignment,
+  submitAssignment,
+  getSubmissionsForAssignment,
+  getMySubmissions,
 };

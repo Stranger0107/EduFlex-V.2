@@ -36,24 +36,20 @@ export default function NotificationBell() {
             <p className="text-gray-500 text-sm">No notifications.</p>
           )}
 
-          {list.map((n) => (
-            <div
-              key={n._id}
-              className={`p-2 border-b cursor-pointer ${
-                n.read ? "bg-gray-100" : "bg-green-50"
-              }`}
-              onClick={() => {
-                markNotificationAsRead(n._id);
-
-                if (n.link) window.location.href = n.link;
-              }}
-            >
-              <p className="text-sm">{n.text}</p>
-              <p className="text-xs text-gray-500">
-                {new Date(n.createdAt).toLocaleString()}
-              </p>
-            </div>
-          ))}
+                  {list.map((n) => (
+                    <div
+                      key={n._id}
+                      className={`p-2 border-b cursor-pointer ${n.read ? "bg-gray-100" : "bg-green-50"}`}
+                      onClick={async () => {
+                        const ok = await markNotificationAsRead(n._id);
+                        if (ok) setList(prev => prev.map(p => p._id === n._id ? { ...p, read: true } : p));
+                        if (n.link) window.location.href = n.link;
+                      }}
+                    >
+                      <p className="text-sm">{n.message || n.title}</p>
+                      <p className="text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</p>
+                    </div>
+                  ))}
         </div>
       )}
     </div>

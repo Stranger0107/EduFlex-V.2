@@ -212,14 +212,49 @@ const getMyAssignments = async (req, res) => {
       let status = 'pending';
       let grade = null;
       let submission = null;
+      let filePath = null;
+      let originalName = null;
 
       if (mySubmission) {
         submission = mySubmission.submission;
+        // prefer an explicit filePath property if available (from assignments controller)
+        if (mySubmission.filePath) {
+          filePath = mySubmission.filePath;
+          // ensure absolute URL
+          if (!filePath.startsWith('http')) filePath = `${baseUrl}${filePath}`;
+        } else if (typeof mySubmission.submission === 'string' && mySubmission.submission.startsWith(`${baseUrl}/uploads`)) {
+          // older submissions may have stored the full URL in `submission`
+          filePath = mySubmission.submission;
+        }
+
+        // originalName may be stored, otherwise derive from filename
+        if (mySubmission.originalName) {
+          originalName = mySubmission.originalName;
+        } else if (filePath) {
+          try {
+            originalName = path.basename(filePath);
+          } catch (e) {
+            originalName = null;
+          }
+        }
+
         if (mySubmission.grade != null) {
           status = 'graded';
           grade = mySubmission.grade;
         } else {
           status = 'submitted';
+        }
+      }
+
+      // Compute submittedAt and isLate so frontend can show correct status after refresh
+      let submittedAt = null;
+      let isLate = false;
+      if (mySubmission && mySubmission.submittedAt) {
+        submittedAt = new Date(mySubmission.submittedAt).toISOString();
+        const dueTs = a.dueDate ? new Date(a.dueDate).getTime() : null;
+        const subTs = new Date(mySubmission.submittedAt).getTime();
+        if (dueTs && !isNaN(subTs)) {
+          isLate = subTs > dueTs;
         }
       }
 
@@ -239,6 +274,10 @@ const getMyAssignments = async (req, res) => {
         status,
         grade,
         submission,
+        filePath,
+        originalName,
+        submittedAt,
+        isLate,
       };
     });
 

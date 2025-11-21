@@ -20,18 +20,16 @@ const assignmentSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Due date is required'],
     },
-
-    // ✅ Professor’s optional file attachments (like PDFs, DOCs, etc.)
     attachmentUrl: {
       type: String,
-      default: '', // stored as /uploads/assignments/<courseId>/<filename>
+      default: '',
     },
-
-    // ✅ Student submissions (text or file uploads)
     submissions: [
       {
         student: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        submission: String, // can be text or uploaded file path
+        submission: String, // text or uploaded file path
+        filePath: { type: String, default: '' },
+        originalName: { type: String, default: '' },
         grade: {
           type: Number,
           min: 0,
@@ -42,11 +40,15 @@ const assignmentSchema = new mongoose.Schema(
           type: Date,
           default: Date.now,
         },
+        isLate: {
+          type: Boolean,
+          default: false,
+        },
       },
     ],
   },
   {
-    timestamps: true, // adds createdAt and updatedAt
+    timestamps: true,
   }
 );
 
