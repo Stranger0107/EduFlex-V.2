@@ -40,9 +40,9 @@ export default function ProfessorCourses() {
 
   // --- Event Handlers ---
 
-  const handleCreate = async (data) => {
-    // *** FIX: Call correct context function ***
-    const newCourse = await createProfessorCourse({ title: data.title, description: data.description });
+  const handleCreate = async (data) => {
+    // Pass through enrollmentKey if provided
+    const newCourse = await createProfessorCourse({ title: data.title, description: data.description, enrollmentKey: data.enrollmentKey });
     if (newCourse) {
       toast.success("Course created!");
       setShowModal(false);
@@ -51,16 +51,16 @@ export default function ProfessorCourses() {
     // Error toast is handled by api.js interceptor
   };
 
-  const handleUpdate = async (id, title, desc) => {
-    // *** FIX: Call correct context function ***
-    const updated = await updateProfessorCourse(id, { title, description: desc });
-    if (updated) {
-      toast.success("Course updated");
-      refreshCourses();
-      return true; // Return true to close edit modal
-    }
+  const handleUpdate = async (id, updateData) => {
+    // updateData is an object { title, description, enrollmentKey }
+    const updated = await updateProfessorCourse(id, updateData);
+    if (updated) {
+      toast.success("Course updated");
+      refreshCourses();
+      return true; // Return true to close edit modal
+    }
     return false;
-  };
+  };
 
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this course? This will also delete all associated assignments.")) {
@@ -117,9 +117,10 @@ function CourseCard({ course, updateCourse, deleteCourse }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(course.title);
   const [desc, setDesc] = useState(course.description);
+  const [enrollmentKey, setEnrollmentKey] = useState("");
 
   const handleSave = async () => {
-    const success = await updateCourse(course._id, title, desc);
+    const success = await updateCourse(course._id, { title, description: desc, enrollmentKey });
     if (success) {
       setEditing(false);
     }
@@ -144,6 +145,14 @@ function CourseCard({ course, updateCourse, deleteCourse }) {
             onChange={e => setDesc(e.target.value)} 
             rows={3} 
             className="text-sm w-full text-gray-700 border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+          <label htmlFor="edit-key" className="text-xs font-semibold text-gray-500 mt-2 block">Enrollment Key (optional)</label>
+          <input
+            id="edit-key"
+            value={enrollmentKey}
+            onChange={e => setEnrollmentKey(e.target.value)}
+            placeholder="Leave empty to keep/change"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-300 mt-1"
           />
           <div className="mt-4">
             <button 
@@ -200,12 +209,13 @@ function CourseCard({ course, updateCourse, deleteCourse }) {
 function CourseModal({ onClose, onSubmit }) {
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
+  const [enrollmentKey, setEnrollmentKey] = useState("");
   //
   // Removed 'credit' state, as it does not exist on the Course model
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ title, description: desc }); // Removed credits
+    onSubmit({ title, description: desc, enrollmentKey }); // include enrollment key
   };
 
   return (
@@ -234,6 +244,16 @@ function CourseModal({ onClose, onSubmit }) {
             rows={3} 
             required
             className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400" 
+          />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="enroll-key" className="font-semibold text-sm block mb-1">Enrollment Key (optional)</label>
+          <input
+            id="enroll-key"
+            value={enrollmentKey}
+            onChange={e => setEnrollmentKey(e.target.value)}
+            placeholder="Optional key students must provide to enroll"
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
         </div>
         {/* */}

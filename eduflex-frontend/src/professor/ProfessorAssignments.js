@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../contexts/AppContext";
 import { toast } from "react-toastify";
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL, API_HOST } from "../config/api";
 
 // Helper to safely extract an ID string
 const getStudentId = (student) => {
@@ -267,12 +267,12 @@ export default function ProfessorAssignments() {
 
                         {/* FILE VIEWER (FIXED) */}
                         <td className="px-4 py-3">
-                          {isSubmitted ? (
+                            {isSubmitted ? (
                             <a
                               href={
                                 submission.submission.startsWith("http")
                                   ? submission.submission
-                                  : `${API_BASE_URL}${submission.submission}`
+                                  : `${API_HOST}${submission.submission}`
                               }
                               target="_blank"
                               rel="noopener noreferrer"

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useApp } from "../contexts/AppContext";
 import { toast } from "react-toastify";
+import { API_BASE_URL, API_HOST } from "../config/api";
 
 export default function ProfessorAssignments() {
   const {
@@ -189,6 +190,7 @@ export default function ProfessorAssignments() {
                     <th className="px-4 py-3 text-left text-xs font-bold">Student</th>
                     <th className="px-4 py-3 text-left text-xs font-bold">Status</th>
                     <th className="px-4 py-3 text-left text-xs font-bold">Submission</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold">Submitted</th>
                     <th className="px-4 py-3 text-center text-xs font-bold">Grade</th>
                     <th className="px-4 py-3 text-left text-xs font-bold">Feedback</th>
                     <th className="px-4 py-3 text-center text-xs font-bold">Action</th>
@@ -233,18 +235,36 @@ export default function ProfessorAssignments() {
                         {/* Submission File */}
                         <td className="px-4 py-3">
                           {isSubmitted ? (
-                            submission.submission ? (
+                            submission.filePath ? (
                               <a
-                                href={submission.submission}  // ⭐ FIX: Direct URL
+                                href={submission.filePath.startsWith('http') ? submission.filePath : `${API_HOST}${submission.filePath}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:underline flex items-center gap-1"
                               >
-                                📄 View PDF
+                                📄 View File
                               </a>
+                            ) : submission.submission ? (
+                              <span>{submission.submission}</span>
                             ) : (
-                              "No File"
+                              <span className="text-gray-400 italic">No File</span>
                             )
+                          ) : (
+                            <span className="text-gray-400 italic">---</span>
+                          )}
+                        </td>
+
+                        {/* Submitted (timestamp + late badge) */}
+                        <td className="px-4 py-3">
+                          {isSubmitted ? (
+                            <div className="text-xs text-gray-500">
+                              {submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : '—'}
+                              {submission.isLate ? (
+                                <span className="ml-3 inline-block px-2 py-0.5 rounded-full bg-red-100 text-red-800 text-xs font-semibold">Late</span>
+                              ) : (
+                                <span className="ml-3 inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-semibold">On time</span>
+                              )}
+                            </div>
                           ) : (
                             <span className="text-gray-400 italic">---</span>
                           )}

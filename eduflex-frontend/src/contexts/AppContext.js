@@ -129,16 +129,17 @@ export const AppProvider = ({ children }) => {
     }
   }, [token]);
 
-  const enrollInCourse = async (courseId) => {
+  const enrollInCourse = async (courseId, enrollmentKey) => {
     try {
-      const { data } = await api.post(`/courses/${courseId}/enroll`, {}, {
+      const body = enrollmentKey ? { enrollmentKey } : {};
+      const { data } = await api.post(`/courses/${courseId}/enroll`, body, {
         headers: { Authorization: `Bearer ${token}` },
       });
       toast.success("Enrolled successfully!");
       return data;
     } catch (error) {
       console.error("API: enrollInCourse failed", error);
-      toast.error("Failed to enroll in course.");
+      toast.error(error.response?.data?.message || "Failed to enroll in course.");
       throw error;
     }
   };
@@ -205,39 +206,35 @@ export const AppProvider = ({ children }) => {
   try {
     let formData;
 
-    // 🔥 If input is already FormData, use it
     if (submissionData instanceof FormData) {
       formData = submissionData;
-    } 
-    // 🔥 If input is a file (Blob), convert to FormData correctly
-    else if (submissionData.file) {
+    } else if (submissionData.file) {
       formData = new FormData();
-      formData.append("file", submissionData.file);   // ⬅️ MUST BE "file"
-    } 
-    // 🔥 If input is text, also send as form-data
-    else {
+      formData.append('file', submissionData.file);
+      if (submissionData.text) formData.append('text', submissionData.text);
+    } else {
       formData = new FormData();
-      formData.append("text", submissionData.text || "");
+      formData.append('text', submissionData.text || submissionData || '');
     }
 
     const { data } = await api.post(
-      `/student/assignments/${assignmentId}/submit`,
+      `/assignments/${assignmentId}/submit`,
       formData,
       {
         headers: {
           Authorization: `Bearer ${token}`,
-          // ❗ Let browser set multipart/form-data boundary
-          "Content-Type": undefined,
+          // don't set Content-Type; browser will set boundary
+          'Content-Type': undefined,
         },
       }
     );
 
-    toast.success("Assignment submitted successfully!");
-    return data;
-
+    toast.success('Assignment submitted successfully!');
+    // return the saved submission object (server returns { submission: {...} })
+    return data.submission || data;
   } catch (error) {
-    console.error("API: submitAssignment failed", error);
-    toast.error(error.response?.data?.message || "Submit failed");
+    console.error('API: submitAssignment failed', error);
+    toast.error(error.response?.data?.message || 'Submit failed');
     throw error;
   }
 };
@@ -266,7 +263,8 @@ export const AppProvider = ({ children }) => {
         id: a.assignmentId,
         assignment: a.title,
         course: a.course,
-        grade: a.grade >= 90 ? 'A' : a.grade >= 80 ? 'B' : a.grade >= 70 ? 'C' : a.grade >= 60 ? 'D' : 'F',
+        // Adjusted thresholds: C >=65, D >=50 to make 50 a passing D
+        grade: a.grade >= 90 ? 'A' : a.grade >= 80 ? 'B' : a.grade >= 65 ? 'C' : a.grade >= 50 ? 'D' : 'F',
         score: `${a.grade}%`,
         date: a.due
       }));
@@ -680,6 +678,58 @@ const fetchRecentGrades = useCallback(async () => {
 }, [token]);
 
 
+  // =============================
+  // 🔔 NOTIFICATIONS
+  // =============================
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const { data } = await api.get('/notification', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return data.map(n => ({ ...n, message: n.message || n.title || '' }));
+    } catch (error) {
+      console.error('API: fetchNotifications failed', error);
+      return [];
+    }
+  }, [token]);
+
+  const getUnreadCount = useCallback(async () => {
+    try {
+      const { data } = await api.get('/notification/unreadCount', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return data.count ?? 0;
+    } catch (error) {
+      console.error('API: getUnreadCount failed', error);
+      return 0;
+    }
+  }, [token]);
+
+  const markNotificationAsRead = useCallback(async (id) => {
+    try {
+      await api.put(`/notification/${id}/read`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return true;
+    } catch (error) {
+      console.error('API: markNotificationAsRead failed', error);
+      return false;
+    }
+  }, [token]);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      await api.put('/notification/markAllRead', {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return true;
+    } catch (error) {
+      console.error('API: markAllNotificationsRead failed', error);
+      return false;
+    }
+  }, [token]);
+
+
 
   // =============================
   // 🌍 CONTEXT VALUE
@@ -725,6 +775,11 @@ const fetchRecentGrades = useCallback(async () => {
     fetchUserStats,
     fetchEnrolledCourses,
     fetchRecentGrades,
+    // Notifications
+    fetchNotifications,
+    getUnreadCount,
+    markNotificationAsRead,
+    markAllNotificationsRead,
     // ✅ QUIZZES
     createQuiz,
     fetchQuizzesForCourse,
