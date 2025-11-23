@@ -150,7 +150,7 @@ function QuickLink({ icon, label, onClick }) {
    👥 USER MANAGEMENT TAB
 ===================================================== */
 function AdminUsers() {
-  //
+      //
   const { fetchAllUsersAdmin, createUser } = useApp();
   const [users, setUsers] = useState([]);
   const [roleFilter, setRoleFilter] = useState("all");
@@ -161,7 +161,9 @@ function AdminUsers() {
     email: "",
     password: "",
     role: "student",
+    department: "",
   });
+      const [editingUserId, setEditingUserId] = useState(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -191,16 +193,26 @@ function AdminUsers() {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.password) {
+    if (!form.name || !form.email || (!editingUserId && !form.password)) {
       toast.warning("All fields required.");
       return;
     }
-    //
-    const newUser = await createUser(form);
-    if (newUser) {
+    try {
+      if (editingUserId) {
+        // update
+        const payload = { name: form.name, email: form.email, role: form.role, department: form.department };
+        await api.put(`/admin/users/${editingUserId}`, payload);
+        toast.success('User updated');
+      } else {
+  	  await createUser(form);
+        toast.success('User created');
+      }
       setShowModal(false);
-      setForm({ name: "", email: "", password: "", role: "student" });
-      fetchUsers(); // Re-fetch all users
+      setForm({ name: "", email: "", password: "", role: "student", department: "" });
+      setEditingUserId(null);
+      fetchUsers();
+    } catch (error) {
+      toast.error('Failed to save user');
     }
   };
 
@@ -219,6 +231,12 @@ function AdminUsers() {
         toast.error("Failed to remove user");
       }
     }
+  };
+
+  const handleEditOpen = (user) => {
+    setEditingUserId(user._id);
+    setForm({ name: user.name || '', email: user.email || '', password: '', role: user.role || 'student', department: user.department || '' });
+    setShowModal(true);
   };
 
   if (loading) return <div>Loading users...</div>;
@@ -258,6 +276,7 @@ function AdminUsers() {
             <th className="px-4 py-2 text-left">Name</th>
             <th className="px-4 py-2 text-left">Email</th>
             <th className="px-4 py-2 text-left">Role</th>
+            <th className="px-4 py-2 text-left">Department</th>
             <th className="px-4 py-2 text-left">Joined</th>
             <th className="px-4 py-2 text-left">Actions</th>
           </tr>
@@ -289,7 +308,7 @@ function AdminUsers() {
           {filteredUsers.length === 0 && (
             <tr>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="text-gray-400 text-center py-6"
               >
                 No users found.
@@ -330,17 +349,29 @@ function AdminUsers() {
               />
             </div>
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">
-                Password
-              </label>
+              <label className="block text-sm font-medium mb-1">Password</label>
               <input
                 type="password"
                 name="password"
                 value={form.password}
                 onChange={handleFormChange}
-                required
+                required={!editingUserId}
                 className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
+            </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1">Department</label>
+              <select
+                name="department"
+                value={form.department}
+                onChange={handleFormChange}
+                className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="">Select department (optional)</option>
+                <option value="CE">CE</option>
+                <option value="CSE">CSE</option>
+                <option value="EXTC">EXTC</option>
+              </select>
             </div>
             <div className="mb-6">
               <label className="block text-sm font-medium mb-1">Role</label>
@@ -360,11 +391,11 @@ function AdminUsers() {
                 type="submit"
                 className="bg-indigo-600 text-white px-4 py-2 rounded font-medium hover:bg-indigo-700"
               >
-                Create
-              </button>
+                {editingUserId ? 'Save' : 'Create'}
+  	     </button>
               <button
                 type="button"
-                onClick={() => setShowModal(false)}
+                onClick={() => { setShowModal(false); setEditingUserId(null); setForm({ name: "", email: "", password: "", role: "student", department: "" }); }}
                 className="bg-gray-300 text-gray-700 px-4 py-2 rounded font-medium hover:bg-gray-400"
               >
                 Cancel
@@ -440,27 +471,15 @@ function AdminCourses() {
         <tbody>
           {filteredCourses.map((c) => (
             <tr key={c._id} className="border-b hover:bg-gray-50">
-              <td className="px-4 py-2 font-semibold">{c.title}</td>
+              <td className="px-4 py-2">{c.title}</td>
               <td className="px-4 py-2">{c.description}</td>
-              <td className="px-4 py-2">
-              {/* */}
-                {c.professor?.name || "N/A"}
-              </td>
-              <td className="px-4 py-2">{c.students?.length || 0}</td>
+              <td className="px-4 py-2">{c.professor?.name || '-'}</td>
+              <td className="px-4 py-2">{(c.students && c.students.length) || 0}</td>
             </tr>
           ))}
-          {filteredCourses.length === 0 && (
-            <tr>
-              <td colSpan={4} className="text-gray-400 text-center py-6">
-        _         No courses found.
-              </td>
-            </tr>
-          )}
         </tbody>
       </table>
     </div>
-  );
-}
 
 /* =====================================================
    ⚙ SETTINGS TAB

@@ -26,6 +26,7 @@ import ProfessorAssignments from "./professor/ProfessorAssignments";
 import ProfessorCourseDetail from "./professor/ProfessorCourseDetail";
 import ProfessorAssignmentDetail from "./professor/ProfessorAssignmentDetail";
 import ProfessorQuizEditor from "./professor/ProfessorQuizEditor";
+import ProfessorQuizReports from "./professor/ProfessorQuizReports";
 
 // Admin pages
 import AdminDashboard from "./admin/AdminDashboard";
@@ -48,7 +49,7 @@ function AppWrapper() {
     user && user.role === "admin" && location.pathname.startsWith("/admin");
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
+    <div className="flex min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       {/* Student sidebar */}
       {showStudentSidebar && (
         <>
@@ -80,10 +81,9 @@ function AppWrapper() {
           flex: 1,
           padding: (showStudentSidebar || showProfessorSidebar || showAdminSidebar) ? "2rem" : "0",
           paddingLeft: (showStudentSidebar || showProfessorSidebar || showAdminSidebar) ? "5rem" : "0",
-          background: "#f9fafb",
-          minHeight: "100vh"
+          minHeight: "100vh",
         }}
-        className={(showStudentSidebar || showProfessorSidebar || showAdminSidebar) ? "md:pl-20" : ""}
+        className={`${(showStudentSidebar || showProfessorSidebar || showAdminSidebar) ? "md:pl-20" : ""} bg-gray-50 dark:bg-gray-800`}
       >
         {/* Notification bell (top-right) */}
         {user && user.role === "student" && (
@@ -142,6 +142,8 @@ function AppWrapper() {
             </ProtectedRoute>
           } />
 
+          {/* Student meetings page removed */}
+
           <Route
             path="/student/courses/:courseId/quiz/:quizId"
             element={<TakeQuiz />}
@@ -175,6 +177,12 @@ function AppWrapper() {
           <Route path="/professor/courses/:courseId" element={
             <ProtectedRoute allowedRoles={["professor"]}>
               <ProfessorCourseDetail />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/professor/quiz-reports" element={
+            <ProtectedRoute allowedRoles={["professor"]}>
+              <ProfessorQuizReports />
             </ProtectedRoute>
           } />
 

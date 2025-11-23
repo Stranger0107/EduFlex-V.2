@@ -14,6 +14,8 @@ export const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('authToken'));
   const [authLoading, setAuthLoading] = useState(true);
+  // Theme: 'light' or 'dark'
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   // =============================
   // 🔐 AUTH FUNCTIONS
@@ -84,6 +86,20 @@ export const AppProvider = ({ children }) => {
     };
     loadInitialUser();
   }, []);
+
+  // Apply theme to document root and persist
+  useEffect(() => {
+    try {
+      const root = document.documentElement;
+      if (theme === 'dark') root.classList.add('dark');
+      else root.classList.remove('dark');
+      localStorage.setItem('theme', theme);
+    } catch (e) {
+      // ignore (e.g., SSR)
+    }
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
   // =============================
   // 📚 COURSE FUNCTIONS (ALL USERS)
@@ -454,11 +470,80 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const submitQuiz = async (quizId, answers) => {
+  const fetchQuizReports = async (quizId) => {
     try {
+      const { data } = await api.get(`/professor/quizzes/${quizId}/reports`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return data;
+    } catch (error) {
+      console.error('API: fetchQuizReports failed', error);
+      toast.error('Failed to load quiz reports.');
+      return { quiz: null, reports: [] };
+    }
+  };
+
+  const scheduleMeeting = async (quizId, studentId, { scheduledAt, durationMins = 30, notes = '' }) => {
+    try {
+      const body = { scheduledAt, durationMins, notes };
+      const { data } = await api.post(`/professor/quizzes/${quizId}/reports/${studentId}/schedule`, body, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success('Meeting scheduled');
+      return data;
+    } catch (error) {
+      console.error('API: scheduleMeeting failed', error);
+      toast.error('Failed to schedule meeting');
+      return null;
+    }
+  };
+
+  const fetchMyMeetings = async () => {
+    try {
+      const { data } = await api.get('/student/meetings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return data;
+    } catch (error) {
+      console.error('API: fetchMyMeetings failed', error);
+      toast.error('Failed to load meetings');
+      return [];
+    }
+  };
+
+  const fetchProfessorMeetings = async () => {
+    try {
+      const { data } = await api.get('/professor/meetings', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return data;
+    } catch (error) {
+      console.error('API: fetchProfessorMeetings failed', error);
+      toast.error('Failed to load professor meetings');
+      return [];
+    }
+  };
+
+  const updateMeetingStatus = async (meetingId, status) => {
+    try {
+      const { data } = await api.patch(`/student/meetings/${meetingId}`, { status }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      toast.success('Meeting updated');
+      return data;
+    } catch (error) {
+      console.error('API: updateMeetingStatus failed', error);
+      toast.error('Failed to update meeting');
+      return null;
+    }
+  };
+
+  const submitQuiz = async (quizId, answers, opts = {}) => {
+    try {
+      const payload = { answers, ...opts };
       const { data } = await api.post(
         `/quizzes/${quizId}/submit`,
-        { answers },
+        payload,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       return data;
@@ -555,6 +640,33 @@ export const AppProvider = ({ children }) => {
     } catch (error) {
       console.error("API: updateUserProfile failed", error);
       toast.error(error.response?.data?.error || "Failed to update profile");
+      return null;
+    }
+  };
+
+  // Upload profile photo (student can update their avatar)
+  const uploadProfilePhoto = async (file) => {
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+
+      const { data } = await api.post('/user/profile/photo', form, {
+        headers: {
+          // let browser set Content-Type with boundary
+          'Content-Type': undefined,
+        },
+      });
+
+      if (data?.user) {
+        setUser(data.user);
+        localStorage.setItem('currentUser', JSON.stringify(data.user));
+      }
+
+      toast.success('Profile photo updated');
+      return data.user;
+    } catch (error) {
+      console.error('API: uploadProfilePhoto failed', error);
+      toast.error('Failed to upload photo');
       return null;
     }
   };
@@ -738,6 +850,8 @@ const fetchRecentGrades = useCallback(async () => {
     user,
     token,
     authLoading,
+    theme,
+    toggleTheme,
     loginUser,
     logoutUser,
     getAllCourses,
@@ -767,6 +881,7 @@ const fetchRecentGrades = useCallback(async () => {
     updateCourse,
     deleteCourse,
     updateUserProfile,
+    uploadProfilePhoto,
     createAssignment,
     fetchAssignmentById, // <-- Added
     deleteAssignment, // <-- Added
@@ -784,6 +899,11 @@ const fetchRecentGrades = useCallback(async () => {
     createQuiz,
     fetchQuizzesForCourse,
     fetchQuizById,
+    scheduleMeeting,
+    fetchQuizReports,
+    fetchMyMeetings,
+    fetchProfessorMeetings,
+    updateMeetingStatus,
     submitQuiz,
   };
 

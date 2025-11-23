@@ -1,5 +1,5 @@
 // eduflex-frontend/src/pages/TakeQuiz.js
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { useApp } from "../contexts/AppContext";
 import { toast } from "react-toastify";
@@ -13,6 +13,11 @@ export default function TakeQuiz() {
   const [answers, setAnswers] = useState([]);
   const [submitted, setSubmitted] = useState(false);
   const [score, setScore] = useState(null);
+  const [timerLeft, setTimerLeft] = useState(null); // seconds
+  const timerRef = useRef(null);
+  const [warningShown, setWarningShown] = useState(false);
+  const [startsIn, setStartsIn] = useState(null); // seconds until start when scheduled
+  const [available, setAvailable] = useState(true);
 
   // ⭐ NEW: For one-by-one navigation
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -41,6 +46,36 @@ export default function TakeQuiz() {
 
       setQuiz(quizData);
       setAnswers(Array(quizData.questions.length).fill(null));
+      // scheduling enforcement
+      const nowMs = Date.now();
+      let isAvailable = true;
+      if (quizData.scheduledAt) {
+        const startMs = new Date(quizData.scheduledAt).getTime();
+        if (nowMs < startMs) {
+          isAvailable = false;
+          setStartsIn(Math.max(0, Math.ceil((startMs - nowMs) / 1000)));
+        }
+      }
+      if (quizData.scheduledEnd) {
+        const endMs = new Date(quizData.scheduledEnd).getTime();
+        if (nowMs > endMs) {
+          // already expired
+          isAvailable = false;
+          setStartsIn(null);
+          setTimerLeft(0);
+        }
+      }
+      setAvailable(isAvailable && !alreadySubmitted);
+
+      // start timer when available: prefer per-user timeLimit; otherwise if scheduledEnd exists, use remaining seconds
+      if (!alreadySubmitted && isAvailable) {
+        if (quizData.timeLimit) {
+          setTimerLeft(Math.max(0, Math.floor(quizData.timeLimit * 60)));
+        } else if (quizData.scheduledEnd) {
+          const endMs = new Date(quizData.scheduledEnd).getTime();
+          setTimerLeft(Math.max(0, Math.floor((endMs - nowMs) / 1000)));
+        }
+      }
       setLoading(false);
     };
 
@@ -59,19 +94,33 @@ export default function TakeQuiz() {
   // ==============================
   // Submit quiz
   // ==============================
-  const handleSubmit = async () => {
+  const handleSubmit = async (force = false) => {
     if (submitted) {
       toast.warning("You have already submitted this quiz.");
       return;
     }
 
-    if (answers.some((a) => a === null)) {
+    if (!force && answers.some((a) => a === null)) {
       toast.warning("Please answer all questions.");
       return;
     }
 
-    const cleaned = answers.map((a) => Number(a));
-    const res = await submitQuiz(quizId, cleaned);
+    // Prepare cleaned answers: keep nulls for unanswered questions
+    const cleaned = answers.map((a) => (a === null || a === undefined ? null : Number(a)));
+    // Stop timer if running
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    // If this submission is forced due to an integrity violation (e.g., tab change), send that metadata
+    const opts = {};
+    if (force) {
+      opts.isForfeited = true;
+      opts.violation = 'forced-submit';
+    }
+
+    const res = await submitQuiz(quizId, cleaned, opts);
 
     if (res?.score !== undefined) {
       toast.success("Quiz submitted successfully!");
@@ -79,6 +128,117 @@ export default function TakeQuiz() {
       setSubmitted(true);
     }
   };
+
+  // Timer effect: decrement every second when timerLeft is set
+  useEffect(() => {
+    if (timerLeft === null) return;
+    if (submitted) return;
+
+    // If timer finished, force submit
+    if (timerLeft <= 0) {
+      (async () => {
+        toast.info('Time is up — submitting your quiz');
+        await handleSubmit(true);
+      })();
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setTimerLeft((t) => {
+        if (t <= 1) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [timerLeft, submitted]);
+
+  // Detect tab/window change or visibility loss and force-submit
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.hidden && !submitted && available) {
+        // immediate forced submit on tab change / visibility loss
+        toast.error('Tab change detected — your quiz will be submitted for security reasons.');
+        handleSubmit(true);
+      }
+    };
+
+    const onBlur = () => {
+      if (!document.hidden && !submitted && available) {
+        // blur can mean switch to another window — treat similarly
+        toast.error('Window change detected — submitting quiz for security reasons.');
+        handleSubmit(true);
+      }
+    };
+
+    const onBeforeUnload = (e) => {
+      if (!submitted && available) {
+        e.preventDefault();
+        e.returnValue = 'You are in the middle of a quiz. If you leave, your quiz may be submitted.';
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [submitted, available]);
+
+  // Start-countdown effect: when startsIn is set (>0) count down until quiz becomes available
+  useEffect(() => {
+    if (startsIn === null) return;
+    if (startsIn <= 0) {
+      // make available and initialize timer
+      setStartsIn(null);
+      setAvailable(true);
+      const nowMs = Date.now();
+      if (quiz?.timeLimit) {
+        setTimerLeft(Math.max(0, Math.floor(quiz.timeLimit * 60)));
+      } else if (quiz?.scheduledEnd) {
+        const endMs = new Date(quiz.scheduledEnd).getTime();
+        setTimerLeft(Math.max(0, Math.floor((endMs - nowMs) / 1000)));
+      }
+      return;
+    }
+
+    const startInterval = setInterval(() => {
+      setStartsIn((s) => {
+        if (s <= 1) {
+          clearInterval(startInterval);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(startInterval);
+  }, [startsIn, quiz]);
+
+  // Warning effect: when timerLeft reaches warning threshold, show banner/toast
+  useEffect(() => {
+    if (timerLeft === null || submitted || warningShown) return;
+    const warningMinutes = quiz?.warningTime || 0;
+    if (!warningMinutes) return;
+    const threshold = warningMinutes * 60;
+    if (timerLeft <= threshold) {
+      setWarningShown(true);
+      toast.warning(`Only ${warningMinutes} minute(s) left!`);
+    }
+  }, [timerLeft, quiz, submitted, warningShown]);
 
   // ==============================
   // Loading state
@@ -139,11 +299,31 @@ export default function TakeQuiz() {
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-green-700">
-        Quiz: {quiz.title}
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-green-700">Quiz: {quiz.title}</h2>
+        {!available && startsIn > 0 && (
+          <div className="text-sm text-blue-600 font-semibold">
+            Starts in: {Math.floor(startsIn / 60).toString().padStart(2, '0')}:{(startsIn % 60).toString().padStart(2, '0')}
+          </div>
+        )}
+        {available && timerLeft !== null && !submitted && (
+          <div className="text-sm text-red-600 font-semibold">
+            Time Left: {Math.floor(timerLeft / 60).toString().padStart(2, '0')}:{(timerLeft % 60).toString().padStart(2, '0')}
+          </div>
+        )}
+      </div>
 
       <div className="p-6 bg-white rounded-lg shadow-md border">
+        {warningShown && !submitted && (
+          <div className="mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded">
+            Warning: time is running out — save your answers. You'll be auto-submitted when time ends.
+          </div>
+        )}
+        {!available && startsIn === null && (
+          <div className="mb-4 p-3 bg-gray-50 border-l-4 border-gray-300 text-gray-700 rounded">
+            This quiz is not available. It may be scheduled for a future time or has already ended.
+          </div>
+        )}
         <p className="text-gray-600 mb-2">
           Question {currentQuestion + 1} of {quiz.questions.length}
         </p>
@@ -162,6 +342,7 @@ export default function TakeQuiz() {
                 value={idx}
                 checked={answers[currentQuestion] === idx}
                 onChange={() => selectOption(idx)}
+                disabled={!available}
                 className="mr-2"
               />
               {opt}
@@ -172,7 +353,7 @@ export default function TakeQuiz() {
         {/* Navigation Buttons */}
         <div className="flex justify-between mt-6">
           <button
-            disabled={currentQuestion === 0}
+            disabled={currentQuestion === 0 || !available}
             onClick={() => setCurrentQuestion((q) => q - 1)}
             className="px-4 py-2 bg-gray-200 rounded disabled:opacity-40"
           >
@@ -182,14 +363,16 @@ export default function TakeQuiz() {
           {currentQuestion < quiz.questions.length - 1 ? (
             <button
               onClick={() => setCurrentQuestion((q) => q + 1)}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              disabled={!available}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
             >
               Next
             </button>
           ) : (
             <button
               onClick={handleSubmit}
-              className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+              disabled={!available}
+              className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
             >
               Submit Quiz
             </button>

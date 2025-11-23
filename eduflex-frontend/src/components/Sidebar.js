@@ -1,13 +1,13 @@
 // src/components/Sidebar.js
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { FaTachometerAlt, FaCogs, FaUser, FaBook, FaChalkboardTeacher, FaSignOutAlt } from "react-icons/fa";
+import { FaTachometerAlt, FaCogs, FaUser, FaBook, FaChalkboardTeacher, FaSignOutAlt, FaMoon, FaSun } from "react-icons/fa";
 import { useApp } from "../contexts/AppContext";
 import { toast } from 'react-toastify';
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logoutUser } = useApp();
+  const { logoutUser, theme, toggleTheme } = useApp();
 
   const menuItems = [
     { name: "Dashboard", path: "/dashboard", icon: <FaTachometerAlt /> },
@@ -26,10 +26,21 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="fixed top-0 left-0 h-screen w-16 bg-gradient-to-b from-green-500 to-green-700 text-white flex flex-col p-4 overflow-hidden group hover:w-64 transition-all duration-500 shadow-xl rounded-r-2xl z-50">
+    <div className="fixed top-0 left-0 h-screen w-16 bg-gradient-to-b from-green-500 to-green-700 dark:from-gray-900 dark:to-gray-800 text-white flex flex-col p-4 overflow-hidden group hover:w-64 transition-all duration-500 shadow-xl rounded-r-2xl z-50">
       <h1 className="text-2xl font-bold mb-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap">
         EduFlex
       </h1>
+      {/* Theme toggle visible when sidebar expanded */}
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mb-6">
+        <button
+          onClick={toggleTheme}
+          className="flex items-center gap-2 px-2 py-1 rounded bg-white bg-opacity-20 hover:bg-opacity-30"
+          title="Toggle theme"
+        >
+          {theme === 'dark' ? <FaMoon /> : <FaSun />}
+          <span className="text-sm">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+        </button>
+      </div>
       
       {menuItems.map((item) => (
         <Link

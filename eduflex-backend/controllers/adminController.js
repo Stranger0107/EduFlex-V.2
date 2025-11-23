@@ -36,7 +36,7 @@ const getAllUsers = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, department } = req.body;
 
     if (!name || !email || !password || !role) {
       return res.status(400).json({ message: 'Missing required fields' });
@@ -51,7 +51,7 @@ const createUser = async (req, res) => {
       return res.status(409).json({ message: 'Email already exists' });
     }
 
-    const user = new User({ name, email, password, role });
+    const user = new User({ name, email, password, role, department });
     await user.save();
 
     res.status(201).json({
@@ -59,6 +59,7 @@ const createUser = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      department: user.department,
     });
   } catch (error) {
     console.error('Create user error:', error.message);
@@ -68,10 +69,14 @@ const createUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, role, department } = req.body;
+
+    const updates = { name, email, role };
+    if (typeof department !== 'undefined') updates.department = department;
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      { name, email, role },
+      updates,
       { new: true }
     ).select('-password');
 

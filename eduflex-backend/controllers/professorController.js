@@ -1,6 +1,78 @@
+// ============================
+// ✅ Course forum: fetch messages (professor)
+// GET /api/professor/courses/:id/forum
+exports.getCourseForumMessages = async (req, res) => {
+  try {
+    const CourseForumMessage = require('../models/CourseForumMessage');
+    const messages = await CourseForumMessage.find({ course: req.params.id }).populate('sender', 'name email').sort({ sentAt: 1 });
+    res.json(messages);
+  } catch (err) {
+    console.error('Error in getCourseForumMessages:', err);
+    res.status(500).json({ message: 'Server error fetching forum messages' });
+  }
+};
+
+// ✅ Course forum: send message (professor)
+// POST /api/professor/courses/:id/forum
+exports.sendCourseForumMessage = async (req, res) => {
+  try {
+    const CourseForumMessage = require('../models/CourseForumMessage');
+    const { text } = req.body;
+    if (!text || typeof text !== 'string' || !text.trim()) return res.status(400).json({ message: 'Message text required' });
+    const msg = new CourseForumMessage({ course: req.params.id, sender: req.user.id, text });
+    await msg.save();
+    await msg.populate('sender', 'name email');
+    res.status(201).json(msg);
+  } catch (err) {
+    console.error('Error in sendCourseForumMessage:', err);
+    res.status(500).json({ message: 'Server error sending forum message' });
+  }
+};
+// ============================
+// ✅ Meeting chat: fetch messages (professor)
+// GET /api/professor/meetings/:id/messages
+exports.getMeetingMessages = async (req, res) => {
+  try {
+    const MeetingMessage = require('../models/MeetingMessage');
+    console.log(`[professorController] GET messages for meeting ${req.params.id} by user ${req.user?.id}`);
+    const messages = await MeetingMessage.find({ meeting: req.params.id }).populate('sender', 'name email').sort({ sentAt: 1 });
+    console.log(`[professorController] returning ${messages.length} messages for meeting ${req.params.id}`);
+    res.json(messages);
+  } catch (err) {
+    console.error('Error in getMeetingMessages:', err);
+    res.status(500).json({ message: 'Server error fetching messages' });
+  }
+};
+
+// ✅ Meeting chat: send message (professor)
+// POST /api/professor/meetings/:id/messages
+exports.sendMeetingMessage = async (req, res) => {
+  try {
+    const Meeting = require('../models/Meeting');
+    const MeetingMessage = require('../models/MeetingMessage');
+    const meeting = await Meeting.findById(req.params.id);
+    if (!meeting) return res.status(404).json({ message: 'Meeting not found' });
+    // Only student or professor in meeting can send
+    if (![String(meeting.student), String(meeting.professor)].includes(String(req.user.id))) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+    const { text } = req.body;
+    if (!text || typeof text !== 'string' || !text.trim()) return res.status(400).json({ message: 'Message text required' });
+    const msg = new MeetingMessage({ meeting: meeting._id, sender: req.user.id, text });
+    await msg.save();
+    await msg.populate('sender', 'name email');
+    console.log(`[professorController] saved message ${msg._id} for meeting ${meeting._id} by user ${req.user.id}`);
+    res.status(201).json(msg);
+  } catch (err) {
+    console.error('Error in sendMeetingMessage:', err);
+    res.status(500).json({ message: 'Server error sending message' });
+  }
+};
 const User = require('../models/User');
 const Course = require('../models/Course');
 const Assignment = require('../models/Assignment');
+const Quiz = require('../models/Quiz');
+const Meeting = require('../models/Meeting');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const Notification = require('../models/Notification');
@@ -276,5 +348,106 @@ exports.updateProfessorProfile = async (req, res) => {
   } catch (err) {
     console.error('Error updating profile:', err.message);
     res.status(500).json({ error: 'Server error while updating profile' });
+  }
+};
+
+// ============================
+// ✅ Get Quiz Reports (per-student scores)
+// ============================
+exports.getQuizReports = async (req, res) => {
+  try {
+    const quizId = req.params.id;
+    const quiz = await Quiz.findById(quizId).populate('course').populate('submissions.student', 'name email');
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+
+    // Ensure the requesting professor owns the course
+    if (!quiz.course || String(quiz.course.professor) !== String(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized to view this quiz' });
+    }
+
+    const reports = (quiz.submissions || []).map((s) => {
+      const percent = (s.total && typeof s.score === 'number') ? Math.round((s.score / s.total) * 100) : null;
+      return {
+        student: s.student || null,
+        score: typeof s.score === 'number' ? s.score : null,
+        total: s.total ?? null,
+        percent,
+        submittedAt: s.submittedAt || null,
+      };
+    });
+
+    res.json({ quiz: { _id: quiz._id, title: quiz.title, course: quiz.course }, reports });
+  } catch (err) {
+    console.error('Error in getQuizReports:', err);
+    res.status(500).json({ error: 'Server error fetching quiz reports' });
+  }
+};
+
+// ============================
+// ✅ Schedule a 1:1 Meeting with a student
+// POST /professor/quizzes/:quizId/reports/:studentId/schedule
+exports.scheduleMeeting = async (req, res) => {
+  try {
+    const { quizId, studentId } = req.params;
+    const { scheduledAt, durationMins, notes } = req.body;
+
+    if (!scheduledAt) return res.status(400).json({ error: 'scheduledAt (ISO datetime) is required' });
+
+    const quiz = await Quiz.findById(quizId).populate('course');
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+
+    // Ensure professor owns the course
+    if (!quiz.course || String(quiz.course.professor) !== String(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized to schedule for this quiz' });
+    }
+
+    // Create meeting
+    const meeting = new Meeting({
+      course: quiz.course._id,
+      professor: req.user.id,
+      student: studentId,
+      quiz: quiz._id,
+      scheduledAt: new Date(scheduledAt),
+      durationMins: Number(durationMins || 30),
+      notes: notes || '',
+    });
+
+    await meeting.save();
+
+    // Notify student
+    try {
+      const Notification = require('../models/Notification');
+      const notif = new Notification({
+        user: studentId,
+        title: `1:1 session scheduled by ${req.user.name || 'Professor'}`,
+        message: `A 1:1 session has been scheduled for ${new Date(scheduledAt).toLocaleString()}.`,
+        type: 'other',
+        relatedId: String(meeting._id),
+        link: `/professor/meetings/${meeting._id}`,
+      });
+      await notif.save();
+    } catch (nerr) {
+      console.error('Failed to create notification for meeting:', nerr);
+    }
+
+    res.status(201).json({ message: 'Meeting scheduled', meeting });
+  } catch (err) {
+    console.error('Error scheduling meeting:', err);
+    res.status(500).json({ error: 'Server error scheduling meeting' });
+  }
+};
+// ✅ Get my scheduled meetings (professor view)
+// GET /api/professor/meetings
+exports.getMyMeetings = async (req, res) => {
+  try {
+    const meetings = await Meeting.find({ professor: req.user.id })
+      .populate('student', 'name email')
+      .populate('course', 'title')
+      .populate('quiz', 'title')
+      .sort({ scheduledAt: 1 });
+    res.json(meetings);
+  } catch (err) {
+    console.error('Error in getMyMeetings:', err);
+    res.status(500).json({ message: 'Server error fetching meetings' });
   }
 };

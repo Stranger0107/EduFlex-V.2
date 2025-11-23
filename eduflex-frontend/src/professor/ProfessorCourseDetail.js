@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useApp } from "../contexts/AppContext";
 import { useParams, Link } from "react-router-dom";
+import { API_HOST } from '../config/api';
 import { toast } from "react-toastify";
 import { FaTrash } from 'react-icons/fa'; // 1. Import the delete icon
 
@@ -36,6 +37,10 @@ export default function ProfessorCourseDetail() {
   const [questions, setQuestions] = useState([
     { questionText: "", options: ["", "", "", ""], correctOption: 0 },
   ]);
+  const [quizTimeLimit, setQuizTimeLimit] = useState(''); // minutes, optional
+  const [quizWarningTime, setQuizWarningTime] = useState(''); // minutes before end to warn students
+  const [quizScheduledAt, setQuizScheduledAt] = useState('');
+  const [quizScheduledEnd, setQuizScheduledEnd] = useState('');
 
   // -------------------------
   // Fetch course + assignments + quizzes
@@ -154,6 +159,10 @@ export default function ProfessorCourseDetail() {
     }
 
     const payload = { title: quizTitle, courseId, questions };
+    if (quizTimeLimit) payload.timeLimit = Number(quizTimeLimit);
+    if (quizWarningTime) payload.warningTime = Number(quizWarningTime);
+    if (quizScheduledAt) payload.scheduledAt = quizScheduledAt; // string ISO from datetime-local
+    if (quizScheduledEnd) payload.scheduledEnd = quizScheduledEnd;
     const newQuiz = await createQuiz(payload);
 
     if (newQuiz) {
@@ -250,7 +259,7 @@ export default function ProfessorCourseDetail() {
                 {a.attachmentUrl && (
                   <div className="mt-2">
                     <a
-                      href={a.attachmentUrl}
+                      href={a.attachmentUrl && a.attachmentUrl.startsWith('http') ? a.attachmentUrl : `${API_HOST}${a.attachmentUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-indigo-600 text-sm hover:underline"
@@ -355,6 +364,56 @@ export default function ProfessorCourseDetail() {
           className="px-3 py-2 border border-gray-300 rounded-md text-sm w-full mb-4"
           required
         />
+
+        <div className="mb-4 flex flex-wrap items-start gap-4">
+          <div>
+            <input
+              placeholder="Time limit (minutes, optional)"
+              value={quizTimeLimit}
+              onChange={(e) => setQuizTimeLimit(e.target.value)}
+              type="number"
+              min="1"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm w-56"
+            />
+            <div className="text-xs text-gray-500 mt-1">Leave empty for no time limit.</div>
+          </div>
+
+          <div>
+            <input
+              placeholder="Warn before (minutes, optional)"
+              value={quizWarningTime}
+              onChange={(e) => setQuizWarningTime(e.target.value)}
+              type="number"
+              min="1"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm w-56"
+            />
+            <div className="text-xs text-gray-500 mt-1">Notify students this many minutes before time ends.</div>
+          </div>
+        </div>
+
+        <div className="mb-4 flex flex-wrap items-center gap-4">
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">Start (local)</label>
+            <input
+              type="datetime-local"
+              value={quizScheduledAt}
+              onChange={(e) => setQuizScheduledAt(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm w-64"
+            />
+            <div className="text-xs text-gray-500 mt-1">Optional: schedule when the quiz becomes available.</div>
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-600 block mb-1">End (local)</label>
+            <input
+              type="datetime-local"
+              value={quizScheduledEnd}
+              onChange={(e) => setQuizScheduledEnd(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm w-64"
+            />
+            <div className="text-xs text-gray-500 mt-1">Optional: when the quiz window ends (overrides timeLimit for global end).</div>
+          </div>
+        </div>
 
         {questions.map((q, qi) => (
           <div key={qi} className="mb-4 border-b pb-3">

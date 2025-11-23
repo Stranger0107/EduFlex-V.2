@@ -12,6 +12,7 @@ export default function ProfessorSidebar() {
     {name: "Dashboard", icon: <FaChalkboardTeacher/>, path: "/professor/dashboard"},
     {name: "Courses", icon: <FaFolder/>, path: "/professor/courses"},
     {name: "Assignments", icon: <FaClipboardList/>, path: "/professor/assignments"},
+    {name: "Quiz Reports", icon: <FaClipboardList/>, path: "/professor/quiz-reports"},
     // Inside menuItems array
 { name: "Profile", icon: <FaUserCircle />, path: "/professor/profile" }
 // (Import FaUserCircle from react-icons/fa if needed)

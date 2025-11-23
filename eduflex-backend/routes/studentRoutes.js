@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+// (Route declarations moved below so auth middleware runs first)
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -12,6 +13,8 @@ const {
   getStudentDashboard,
   getMyAssignments
 } = require('../controllers/studentController.js');
+
+const { getMyMeetings, updateMeetingStatus } = require('../controllers/studentController.js');
 
 // ✅ DEFINE MULTER CONFIGURATION LOCALLY TO ENSURE IT WORKS
 const storage = multer.diskStorage({
@@ -63,6 +66,13 @@ const upload = multer({
 router.use(authenticate);
 router.use(authorize('student'));
 
+// Course forum endpoints (protected)
+router.get('/courses/:id/forum', require('../controllers/studentController').getCourseForumMessages);
+router.post('/courses/:id/forum', require('../controllers/studentController').sendCourseForumMessage);
+// Meeting chat endpoints (protected)
+router.get('/meetings/:id/messages', require('../controllers/studentController').getMeetingMessages);
+router.post('/meetings/:id/messages', require('../controllers/studentController').sendMeetingMessage);
+
 router.get('/courses', getMyCourses);
 router.get('/assignments/:courseId', getCourseAssignments);
 
@@ -80,5 +90,9 @@ router.post(
 router.get('/grades', getMyGrades);
 router.get('/dashboard', getStudentDashboard);
 router.get('/assignments', getMyAssignments);
+
+// Student meetings
+router.get('/meetings', getMyMeetings);
+router.patch('/meetings/:id', updateMeetingStatus);
 
 module.exports = router;

@@ -11,7 +11,8 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "student" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "student", department: "" });
+  const [editingUserId, setEditingUserId] = useState(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -56,17 +57,34 @@ export default function AdminUsers() {
       toast.warning("All fields required.");
       return;
     }
+
     try {
-      const newUser = await createUser(form);
-      if (newUser) { 
-        setForm({ name: "", email: "", password: "", role: "student" });
-        setShowModal(false);
-        toast.success("User created!");
-        fetchUsers(); 
-      }
+      if (editingUserId) {
+        // Update existing user
+          const payload = { name: form.name, email: form.email, role: form.role, department: form.department };
+          await api.put(`/admin/users/${editingUserId}`, payload);
+        toast.success("User updated!");
+      } else {
+        const newUser = await createUser(form);
+         if (newUser) {
+          toast.success("User created!");
+        }
+      }
+
+      setForm({ name: "", email: "", password: "", role: "student", department: "" });
+      setShowModal(false);
+      setEditingUserId(null);
+      fetchUsers();
     } catch (err) {
-      console.error("Failed to create user:", err);
+      console.error("Failed to create/update user:", err);
+      toast.error("Failed to save user.");
     }
+  };
+
+  const handleEditOpen = (user) => {
+    setEditingUserId(user._id);
+    setForm({ name: user.name || "", email: user.email || "", password: "", role: user.role || "student", department: user.department || "" });
+    setShowModal(true);
   };
 
   return (
@@ -91,13 +109,14 @@ export default function AdminUsers() {
       ) : (
         <table className="w-full bg-white rounded-xl shadow overflow-x-auto">
           <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2 text-left">Name</th>
-              <th className="px-4 py-2 text-left">Email</th>
-              <th className="px-4 py-2 text-left">Role</th>
-              <th className="px-4 py-2 text-left">Joined</th>
-              <th className="px-4 py-2 text-left">Actions</th>
-            </tr>
+           <tr>
+             <th className="px-4 py-2 text-left">Name</th>
+             <th className="px-4 py-2 text-left">Email</th>
+             <th className="px-4 py-2 text-left">Role</th>
+             <th className="px-4 py-2 text-left">Department</th>
+             <th className="px-4 py-2 text-left">Joined</th>
+             <th className="px-4 py-2 text-left">Actions</th>
+           </tr>
           </thead>
           <tbody>
             {filteredUsers.map((u) => (
@@ -105,6 +124,7 @@ export default function AdminUsers() {
                 <td className="px-4 py-2">{u.name}</td>
                 <td className="px-4 py-2">{u.email}</td>
                 <td className="px-4 py-2 capitalize">{u.role}</td>
+                <td className="px-4 py-2">{u.department || '-'}</td>
                 <td className="px-4 py-2">{new Date(u.joinedAt).toLocaleDateString()}</td>
                 <td className="px-4 py-2">
                   <button
@@ -115,14 +135,20 @@ export default function AdminUsers() {
                   >
                     Delete
                   </button>
+                    <button
+                      className="ml-2 bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                      onClick={() => handleEditOpen(u)}
+                    >
+                      Edit
+                    </button>
              </td>
               </tr>
             ))}
             {filteredUsers.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-gray-400 text-center py-6">No users found.</td>
-             </tr>
-            )}
+                <td colSpan={6} className="text-gray-400 text-center py-6">No users found.</td>
+             </tr>
+           )}
           </tbody>
         </table>
       )}
@@ -162,11 +188,25 @@ export default function AdminUsers() {
                 type="password"
                 name="password"
                 value={form.password}
-                onChange={handleFormChange}
-                required
+               onChange={handleFormChange}
+               required={!editingUserId}
                 className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Department</label>
+            <select
+              name="department"
+              value={form.department}
+              onChange={handleFormChange}
+              className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Select department (optional)</option>
+              <option value="CE">CE</option>
+              <option value="CSE">CSE</option>
+              <option value="EXTC">EXTC</option>
+            </select>
+          </div>
             <div className="mb-6">
              <label className="block text-sm font-medium mb-1">Role</label>
               <select
@@ -180,13 +220,13 @@ export default function AdminUsers() {
                 <option value="admin">Admin</option>
               </select>
             </div>
-         <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3">
               <button
 
                 type="submit"
                 className="bg-indigo-600 text-white px-4 py-2 rounded font-medium hover:bg-indigo-700"
               >
-                Create
+                {editingUserId ? 'Save' : 'Create'}
               </button>
              <button
                 type="button"

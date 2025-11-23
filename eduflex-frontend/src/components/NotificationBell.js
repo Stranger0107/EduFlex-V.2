@@ -29,17 +29,17 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-3 w-80 bg-white shadow-lg rounded p-3 z-50">
+        <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-gray-800 shadow-lg rounded p-3 z-50">
           <h3 className="font-bold mb-2">Notifications</h3>
 
           {list.length === 0 && (
-            <p className="text-gray-500 text-sm">No notifications.</p>
+            <p className="text-gray-500 dark:text-gray-300 text-sm">No notifications.</p>
           )}
 
                   {list.map((n) => (
                     <div
                       key={n._id}
-                      className={`p-2 border-b cursor-pointer ${n.read ? "bg-gray-100" : "bg-green-50"}`}
+                      className={`p-2 border-b cursor-pointer ${n.read ? "bg-gray-100 dark:bg-transparent" : "bg-green-50 dark:bg-opacity-10"}`}
                       onClick={async () => {
                         const ok = await markNotificationAsRead(n._id);
                         if (ok) setList(prev => prev.map(p => p._id === n._id ? { ...p, read: true } : p));
@@ -47,7 +47,7 @@ export default function NotificationBell() {
                       }}
                     >
                       <p className="text-sm">{n.message || n.title}</p>
-                      <p className="text-xs text-gray-500">{new Date(n.createdAt).toLocaleString()}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(n.createdAt).toLocaleString()}</p>
                     </div>
                   ))}
         </div>

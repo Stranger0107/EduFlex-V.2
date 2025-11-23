@@ -3,7 +3,7 @@ const Course = require('../models/Course');
 
 const createQuiz = async (req, res) => {
   try {
-    const { title, questions, courseId } = req.body;
+    const { title, questions, courseId, timeLimit, warningTime, scheduledAt, scheduledEnd } = req.body;
     if (!title || !courseId || !questions || !Array.isArray(questions)) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
@@ -18,7 +18,11 @@ const createQuiz = async (req, res) => {
       return res.status(403).json({ message: 'Unauthorized' });
     }
 
-    const quiz = new Quiz({ title, questions, course: courseId });
+    const quizData = { title, questions, course: courseId, timeLimit, warningTime };
+    if (scheduledAt) quizData.scheduledAt = new Date(scheduledAt);
+    if (scheduledEnd) quizData.scheduledEnd = new Date(scheduledEnd);
+
+    const quiz = new Quiz(quizData);
     await quiz.save();
 
     res.status(201).json(quiz);
@@ -54,7 +58,7 @@ const getQuizById = async (req, res) => {
 
 const submitQuiz = async (req, res) => {
   try {
-    const { answers } = req.body;
+    const { answers, violation, isForfeited } = req.body;
     const quiz = await Quiz.findById(req.params.quizId);
 
     if (!quiz) return res.status(404).json({ message: 'Quiz not found' });
@@ -68,16 +72,24 @@ const submitQuiz = async (req, res) => {
       return res.status(400).json({ message: "You already attempted this quiz" });
     }
 
-    const score = answers.reduce(
-      (acc, ans, i) => acc + (ans === quiz.questions[i].correctOption ? 1 : 0),
-      0
-    );
+    // Accept partial answers (null/undefined entries) — treat them as incorrect
+    const submittedAnswers = Array.isArray(answers) ? answers : [];
+
+    let score = 0;
+    for (let i = 0; i < quiz.questions.length; i++) {
+      const ans = submittedAnswers[i];
+      if (typeof ans === 'number' && ans === quiz.questions[i].correctOption) {
+        score += 1;
+      }
+    }
 
     quiz.submissions.push({
       student: req.user.id,
-      answers,
+      answers: submittedAnswers,
       score,
       total: quiz.questions.length,
+      violation: violation || undefined,
+      isForfeited: !!isForfeited,
     });
 
     await quiz.save();

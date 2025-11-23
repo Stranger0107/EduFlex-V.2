@@ -274,25 +274,29 @@ export default function ProfessorProfile() {
             >
               Department:
             </span>
-            {editing ? (
-              <input
-                type="text"
-                name="department"
-                value={profile.department}
-                onChange={handleChange}
-                style={{
-                  fontSize: ".98rem",
-                  padding: ".3rem .7rem",
-                  border: "1.5px solid #a5b4fc",
-                  borderRadius: "7px",
-                  background: "#fff",
-                }}
-              />
-            ) : (
-              <span style={{ color: "#475569" }}>
-                {profile.department || "-"}
-              </span>
-            )}
+              {editing ? (
+                <select
+                  name="department"
+                  value={profile.department}
+                  onChange={handleChange}
+                  style={{
+                    fontSize: ".98rem",
+                    padding: ".3rem .7rem",
+                    border: "1.5px solid #a5b4fc",
+                    borderRadius: "7px",
+                    background: "#fff",
+                  }}
+                >
+                  <option value="">Select department</option>
+                  <option value="CE">CE</option>
+                  <option value="CSE">CSE</option>
+                  <option value="EXTC">EXTC</option>
+                </select>
+              ) : (
+                <span style={{ color: "#475569" }}>
+                  {profile.department || "-"}
+                </span>
+              )}
           </div>
 
           {/* Email */}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
+import { API_HOST } from '../config/api';
 import { useApp } from "../contexts/AppContext";
 import { toast } from "react-toastify";
 
@@ -90,7 +91,7 @@ export default function CourseDetail() {
                 </div>
                 <div className="flex gap-3">
                   <a
-                    href={m.fileUrl}
+                    href={m.fileUrl && m.fileUrl.startsWith('http') ? m.fileUrl : `${API_HOST}${m.fileUrl}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline"
@@ -98,7 +99,7 @@ export default function CourseDetail() {
                     View
                   </a>
                   <a
-                    href={m.fileUrl}
+                    href={m.fileUrl && m.fileUrl.startsWith('http') ? m.fileUrl : `${API_HOST}${m.fileUrl}`}
                     download
                     className="text-green-600 hover:underline"
                   >
@@ -129,7 +130,7 @@ export default function CourseDetail() {
                   <p className="text-sm text-gray-500">{a.description}</p>
                   {a.attachmentUrl && (
                     <a
-                      href={a.attachmentUrl}
+                      href={a.attachmentUrl && a.attachmentUrl.startsWith('http') ? a.attachmentUrl : `${API_HOST}${a.attachmentUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-indigo-600 text-sm hover:underline block mt-1"

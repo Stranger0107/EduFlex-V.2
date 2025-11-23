@@ -74,9 +74,9 @@ export default function Login() {
 
   // Render Login form if not loading and no user
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
       {/* Left side: Logo */}
-      <div className="hidden md:flex flex-1 items-center justify-center bg-gradient-to-br from-green-500 to-green-700 p-8">
+      <div className="hidden md:flex flex-1 items-center justify-center bg-gradient-to-br from-green-500 to-green-700 dark:from-gray-800 dark:to-gray-900 p-8">
         <img
           src={logo}
           alt="EduFlex Logo"
@@ -88,7 +88,7 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center p-6 md:p-12">
         <form
           onSubmit={handleSubmit}
-          className="w-full max-w-sm bg-white p-8 rounded-xl shadow-lg space-y-6"
+          className="w-full max-w-sm bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg space-y-6"
         >
           <h2 className="text-3xl font-bold text-center text-green-700">
             Login
@@ -108,7 +108,7 @@ export default function Login() {
               placeholder="Email Address"
               required
               disabled={isSubmitting}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition duration-200 bg-white disabled:bg-gray-100 placeholder-gray-400"
+              className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition duration-200 bg-white dark:bg-gray-900 disabled:bg-gray-100 placeholder-gray-400 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100"
             />
           </div>
 
@@ -123,7 +123,7 @@ export default function Login() {
               placeholder="Password"
               required
               disabled={isSubmitting}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition duration-200 bg-white disabled:bg-gray-100 placeholder-gray-400"
+              className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition duration-200 bg-white dark:bg-gray-900 disabled:bg-gray-100 placeholder-gray-400 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100"
             />
             <button
               type="button"
@@ -137,7 +137,7 @@ export default function Login() {
 
           {/* Remember me & Forgot password */}
           <div className="flex justify-between items-center text-sm">
-            <label className="flex items-center cursor-pointer text-gray-600 select-none"> {/* Added select-none */}
+            <label className="flex items-center cursor-pointer text-gray-600 dark:text-gray-300 select-none"> {/* Added select-none */}
               <input
                 type="checkbox"
                 checked={rememberMe}

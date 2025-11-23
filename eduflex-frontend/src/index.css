@@ -1,3 +1,64 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ---------- THEME VARIABLES ---------- */
+:root {
+	--bg: #f9fafb;             /* light mode background */
+	--surface: #ffffff;        /* light mode card */
+	--surface-2: #f3f4f6;
+	--muted: #6b7280;          /* muted gray */
+	--accent: #10b981;         /* emerald */
+	--border: #e5e7eb;
+	--radius: 14px;
+	--card-shadow: 0 8px 20px rgba(2,6,23,0.06);
+}
+
+/* ---------- DARK MODE THEME ---------- */
+.dark {
+	--bg: #020617;             /* deep navy black */
+	--surface: #131c31;        /* clean dark card */
+	--surface-2: #1b2539;      /* hover */
+	--muted: #94a3b8;
+	--accent: #38bdf8;         /* neon cyan */
+	--border: #1e293b;
+	--card-shadow: 0 12px 28px rgba(0,0,0,0.55);
+}
+
+/* Smooth theme transition */
+* {
+	transition: background-color 250ms ease, 
+	            color 250ms ease, 
+	            border-color 250ms ease,
+	            box-shadow 250ms ease;
+}
+
+/* Utility classes */
+.app-bg {
+	background: var(--bg) !important;
+}
+
+.card-bg {
+	background: var(--surface) !important;
+	border-radius: var(--radius);
+	border: 1px solid var(--border);
+	padding: 1.5rem;
+	box-shadow: var(--card-shadow);
+}
+
+.card-bg:hover {
+	background: var(--surface-2) !important;
+}
+
+.muted {
+	color: var(--muted);
+}
+
+/* Override some default Tailwind for dark mode */
+.dark .text-gray-700,
+.dark .text-gray-800,
+.dark .text-gray-600 {
+	color: var(--muted) !important;
+}
+
+.dark .shadow-lg { box-shadow: var(--card-shadow) !important; }

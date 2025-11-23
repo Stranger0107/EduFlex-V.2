@@ -6,6 +6,8 @@ const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   phone: { type: String },
+    // optional department (e.g., Computer Science, Mathematics)
+    department: { type: String },
   // *** THIS IS THE FIX ***
   role: { type: String, enum: ['student','professor','admin'], required: true },
   password: { type: String, required: true },
@@ -17,6 +19,8 @@ const userSchema = new mongoose.Schema({
   pendingAssignmentsCount: { type: Number, default: 0 },
   averageGrade: { type: Number, default: 0 },
   overallProgressPct: { type: Number, default: 0 },
+    // profile photo URL
+    photo: { type: String },
 
   resetPasswordToken: String,
   resetPasswordExpires: Date

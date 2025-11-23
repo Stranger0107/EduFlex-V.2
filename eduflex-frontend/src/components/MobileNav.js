@@ -9,7 +9,7 @@ export default function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logoutUser } = useApp();
+  const { user, logoutUser, theme, toggleTheme } = useApp();
 
   // You can add logic here to only show tabs for students/professors/admin by checking user.role
   const menuItems = [
@@ -32,8 +32,17 @@ export default function MobileNav() {
   return (
     <>
       {/* Mobile Header */}
-      <div className="bg-gradient-to-r from-green-500 to-green-700 text-white p-4 flex justify-between items-center shadow-lg fixed top-0 left-0 right-0 z-40">
-        <h1 className="text-xl font-bold">EduFlex</h1>
+      <div className="bg-gradient-to-r from-green-500 to-green-700 dark:from-gray-900 dark:to-gray-800 text-white p-4 flex justify-between items-center shadow-lg fixed top-0 left-0 right-0 z-40">
+        <div className="flex items-center gap-4">
+          <h1 className="text-xl font-bold">EduFlex</h1>
+          <button
+            onClick={toggleTheme}
+            className="ml-2 px-2 py-1 rounded-md bg-white bg-opacity-20 text-sm"
+            title="Toggle light / dark"
+          >
+            {theme === 'dark' ? 'Dark' : 'Light'}
+          </button>
+        </div>
         <button
           onClick={() => setIsOpen(!isOpen)}
           className="text-2xl hover:text-green-200 transition-colors"

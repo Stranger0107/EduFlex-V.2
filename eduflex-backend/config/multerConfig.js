@@ -4,13 +4,16 @@ const fs = require('fs');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const type = req.uploadType || 'materials';
+    // If the incoming field is a profile photo, store under 'profile'
+    const type = file && file.fieldname === 'photo' ? 'profile' : (req.uploadType || 'materials');
 
-    const folderId =
-      req.params.id ||
-      req.body.courseId ||
-      req.query.courseId ||   // ⭐ NEW — ensures assignment uploads use courseId
-      'general';
+    // Determine folder id. For profile photos prefer the authenticated user's id.
+    let folderId = null;
+    if (file && file.fieldname === 'photo' && req.user && req.user.id) {
+      folderId = req.user.id;
+    } else {
+      folderId = req.params.id || req.body.courseId || req.query.courseId || 'general';
+    }
 
     const uploadDir = path.join(__dirname, '..', 'uploads', type, folderId);
 
